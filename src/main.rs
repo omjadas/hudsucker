@@ -1,6 +1,4 @@
-pub mod lib;
-
-use lib::*;
+use rustproxy::*;
 use std::net::SocketAddr;
 
 async fn shutdown_signal() {
@@ -26,6 +24,7 @@ async fn main() {
         shutdown_signal: shutdown_signal(),
         request_handler: Some(req_handler),
         response_handler: Some(res_handler),
+        private_key: rustls::PrivateKey(vec![]),
     };
 
     if let Err(e) = start_proxy(proxy_config).await {
