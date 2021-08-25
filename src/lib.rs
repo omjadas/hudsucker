@@ -70,9 +70,8 @@ where
         .http1_title_case_headers(true)
         .serve(make_service)
         .with_graceful_shutdown(shutdown_signal)
-        .await?;
-
-    Ok(())
+        .await
+        .map_err(|err| err.into())
 }
 
 fn gen_client() -> Client<HttpsConnector<HttpConnector>> {
