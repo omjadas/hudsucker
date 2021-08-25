@@ -8,8 +8,9 @@ use hyper::server::conn::Http;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Client, Method, Request, Response, Server};
-use hyper_tls::HttpsConnector;
+use hyper_rustls::HttpsConnector;
 use rcgen::RcgenError;
+use rustls::ClientConfig;
 use std::convert::Infallible;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -43,11 +44,7 @@ where
 {
     validate_key(&private_key)?;
 
-    let client = Client::builder()
-        .http1_title_case_headers(true)
-        .http1_preserve_header_case(true)
-        .build(HttpsConnector::new());
-
+    let client = gen_client();
     let ca = CertificateAuthority::new(private_key);
     let request_handler = request_handler.unwrap_or(|req| (req, None));
     let response_handler = response_handler.unwrap_or(|res| res);
@@ -76,6 +73,24 @@ where
         .await?;
 
     Ok(())
+}
+
+fn gen_client() -> Client<HttpsConnector<HttpConnector>> {
+    let mut config = ClientConfig::new();
+    config.ct_logs = Some(&ct_logs::LOGS);
+    config
+        .root_store
+        .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+
+    let connector: HttpsConnector<HttpConnector> = (http, config).into();
+
+    Client::builder()
+        .http1_title_case_headers(true)
+        .http1_preserve_header_case(true)
+        .build(connector)
 }
 
 async fn proxy(
@@ -125,7 +140,10 @@ fn process_connect(
                     .accept(upgraded)
                     .await
                     .unwrap();
-                serve_connection(stream, client, handle_req, handle_res).await;
+
+                if let Err(e) = serve_connection(stream, client, handle_req, handle_res).await {
+                    eprintln!("{:?}", e);
+                }
             }
             Err(e) => eprintln!("upgrade error: {}", e),
         };
