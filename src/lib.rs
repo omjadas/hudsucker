@@ -9,6 +9,7 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Client, Method, Request, Response, Server};
 use hyper_rustls::HttpsConnector;
+use log::*;
 use rcgen::RcgenError;
 use rustls::ClientConfig;
 use std::convert::Infallible;
@@ -143,11 +144,11 @@ async fn process_connect(
                 if let Err(e) = serve_connection(stream, client, handle_req, handle_res).await {
                     let e_string = e.to_string();
                     if !e_string.starts_with("error shutting down connection") {
-                        eprintln!("{}", e_string);
+                        error!("{}", e_string);
                     }
                 }
             }
-            Err(e) => eprintln!("upgrade error: {}", e),
+            Err(e) => error!("upgrade error: {}", e),
         };
     });
 
