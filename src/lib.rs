@@ -141,7 +141,10 @@ fn process_connect(
                     .unwrap();
 
                 if let Err(e) = serve_connection(stream, client, handle_req, handle_res).await {
-                    eprintln!("{:?}", e);
+                    let e_string = e.to_string();
+                    if !e_string.starts_with("error shutting down connection") {
+                        eprintln!("{}", e_string);
+                    }
                 }
             }
             Err(e) => eprintln!("upgrade error: {}", e),
