@@ -35,7 +35,7 @@ impl CertificateAuthority {
 
     pub fn gen_server_config(&self, authority: &Authority) -> ServerConfig {
         let mut server_cfg = ServerConfig::new(NoClientAuth::new());
-        let certs = vec![self.gen_cert(authority)];
+        let certs = vec![self.gen_cert(authority); 1];
 
         // TODO: handle Err
         server_cfg
