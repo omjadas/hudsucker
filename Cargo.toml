@@ -12,6 +12,7 @@ http = "0.2"
 hyper = { version = "0.14", features = ["full"] }
 hyper-rustls = "0.22"
 log = "0.4"
+moka = { version = "0.5", features = ["future"] }
 rcgen = "0.8"
 rustls = "0.19"
 thiserror = "1"

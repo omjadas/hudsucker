@@ -45,7 +45,7 @@ where
     validate_key(&private_key)?;
 
     let client = gen_client();
-    let ca = CertificateAuthority::new(private_key);
+    let ca = CertificateAuthority::new(private_key, 1_000);
     let request_handler = request_handler.unwrap_or(|req| (req, None));
     let response_handler = response_handler.unwrap_or(|res| res);
 
@@ -100,7 +100,7 @@ async fn proxy(
     handle_res: ResponseHandler,
 ) -> Result<Response<Body>, hyper::Error> {
     if req.method() == Method::CONNECT {
-        process_connect(req, client, ca, handle_req, handle_res)
+        process_connect(req, client, ca, handle_req, handle_res).await
     } else {
         process_request(req, client, handle_req, handle_res).await
     }
@@ -121,7 +121,7 @@ async fn process_request(
     Ok(handle_res(res))
 }
 
-fn process_connect(
+async fn process_connect(
     req: Request<Body>,
     client: HttpClient,
     ca: CertificateAuthority,
@@ -129,7 +129,7 @@ fn process_connect(
     handle_res: ResponseHandler,
 ) -> Result<Response<Body>, hyper::Error> {
     let authority = req.uri().authority().unwrap();
-    let server_config = Arc::new(ca.gen_server_config(authority));
+    let server_config = Arc::new(ca.gen_server_config(authority).await);
 
     tokio::task::spawn(async move {
         match hyper::upgrade::on(req).await {
