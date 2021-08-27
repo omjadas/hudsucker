@@ -8,6 +8,7 @@ use hyper::server::conn::Http;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Client, Method, Request, Response, Server};
+use hyper_proxy::ProxyConnector;
 use hyper_rustls::HttpsConnector;
 use log::*;
 use rcgen::RcgenError;
@@ -18,26 +19,33 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_rustls::TlsAcceptor;
 
-type HttpClient = Client<HttpsConnector<HttpConnector>>;
-
 pub type RequestHandler = fn(Request<Body>) -> (Request<Body>, Option<Response<Body>>);
 pub type ResponseHandler = fn(Response<Body>) -> Response<Body>;
 
+#[derive(Clone)]
+pub enum HttpClient {
+    Proxy(Client<ProxyConnector<HttpsConnector<HttpConnector>>>),
+    Https(Client<HttpsConnector<HttpConnector>>),
+}
+
+#[derive(Clone)]
 pub struct ProxyConfig<F: Future<Output = ()>> {
     pub listen_addr: SocketAddr,
     pub shutdown_signal: F,
+    pub private_key: rustls::PrivateKey,
     pub request_handler: Option<RequestHandler>,
     pub response_handler: Option<ResponseHandler>,
-    pub private_key: rustls::PrivateKey,
+    pub upstream_proxy: Option<hyper_proxy::Proxy>,
 }
 
 pub async fn start_proxy<F>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
+        private_key,
         request_handler,
         response_handler,
-        private_key,
+        upstream_proxy,
     }: ProxyConfig<F>,
 ) -> Result<(), Error>
 where
@@ -45,7 +53,7 @@ where
 {
     validate_key(&private_key)?;
 
-    let client = gen_client();
+    let client = gen_client(upstream_proxy);
     let ca = CertificateAuthority::new(private_key, 1_000);
     let request_handler = request_handler.unwrap_or(|req| (req, None));
     let response_handler = response_handler.unwrap_or(|res| res);
@@ -75,22 +83,34 @@ where
         .map_err(|err| err.into())
 }
 
-fn gen_client() -> Client<HttpsConnector<HttpConnector>> {
+fn gen_client(upstream_proxy: Option<hyper_proxy::Proxy>) -> HttpClient {
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+
     let mut config = ClientConfig::new();
     config.ct_logs = Some(&ct_logs::LOGS);
     config
         .root_store
         .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
 
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
+    let https: HttpsConnector<HttpConnector> = (http, config).into();
 
-    let connector: HttpsConnector<HttpConnector> = (http, config).into();
-
-    Client::builder()
-        .http1_title_case_headers(true)
-        .http1_preserve_header_case(true)
-        .build(connector)
+    if let Some(proxy) = upstream_proxy {
+        let connector = ProxyConnector::from_proxy(https, proxy).unwrap();
+        return HttpClient::Proxy(
+            Client::builder()
+                .http1_title_case_headers(true)
+                .http1_preserve_header_case(true)
+                .build(connector),
+        );
+    } else {
+        HttpClient::Https(
+            Client::builder()
+                .http1_title_case_headers(true)
+                .http1_preserve_header_case(true)
+                .build(https),
+        )
+    }
 }
 
 async fn proxy(
@@ -118,7 +138,11 @@ async fn process_request(
         return Ok(res);
     }
 
-    let res = client.request(req).await?;
+    let res = match client {
+        HttpClient::Proxy(client) => client.request(req).await?,
+        HttpClient::Https(client) => client.request(req).await?,
+    };
+
     Ok(handle_res(res))
 }
 

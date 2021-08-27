@@ -1,3 +1,5 @@
+use futures::try_join;
+use hyper_proxy::{Intercept, Proxy};
 use rustproxy::*;
 use std::net::SocketAddr;
 
@@ -27,15 +29,30 @@ async fn main() {
         .remove(0);
 
     let proxy_config = ProxyConfig {
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
+        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
         shutdown_signal: shutdown_signal(),
         request_handler: Some(req_handler),
         response_handler: Some(res_handler),
-        private_key: key,
+        private_key: key.clone(),
         upstream_proxy: None,
     };
 
-    if let Err(e) = start_proxy(proxy_config).await {
-        eprintln!("{}", e);
-    }
+    let proxy_config_2 = ProxyConfig {
+        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
+        request_handler: None,
+        response_handler: None,
+        shutdown_signal: shutdown_signal(),
+        private_key: key,
+        upstream_proxy: Some(Proxy::new(
+            Intercept::All,
+            "http://127.0.0.1:3001".parse().unwrap(),
+        )),
+    };
+
+    let proxy_1 = start_proxy(proxy_config);
+    let proxy_2 = start_proxy(proxy_config_2);
+
+    if let Err(e) = try_join!(proxy_1, proxy_2) {
+        println!("{:?}", e);
+    };
 }
