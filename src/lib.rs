@@ -3,20 +3,19 @@ mod error;
 
 use certificate_authority::CertificateAuthority;
 use error::Error;
-use hyper::client::HttpConnector;
-use hyper::server::conn::Http;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::upgrade::Upgraded;
-use hyper::{Body, Client, Method, Request, Response, Server};
+use hyper::{
+    client::HttpConnector,
+    server::conn::Http,
+    service::{make_service_fn, service_fn},
+    upgrade::Upgraded,
+    Body, Client, Method, Request, Response, Server,
+};
 use hyper_proxy::ProxyConnector;
 use hyper_rustls::HttpsConnector;
 use log::*;
 use rcgen::RcgenError;
 use rustls::ClientConfig;
-use std::convert::Infallible;
-use std::future::Future;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio_rustls::TlsAcceptor;
 
 pub type RequestHandler = fn(Request<Body>) -> (Request<Body>, Option<Response<Body>>);
