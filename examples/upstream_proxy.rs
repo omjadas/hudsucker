@@ -37,6 +37,7 @@ async fn main() {
         outgoing_message_handler: |msg| msg,
         private_key: key.clone(),
         upstream_proxy: None,
+        cache_size: None,
     };
 
     let proxy_config_2 = ProxyConfig {
@@ -51,6 +52,7 @@ async fn main() {
             Intercept::All,
             "http://127.0.0.1:3001".parse().unwrap(),
         )),
+        cache_size: None,
     };
 
     let proxy_1 = start_proxy(proxy_config);

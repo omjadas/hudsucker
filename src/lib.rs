@@ -52,6 +52,7 @@ where
     pub incoming_message_handler: W1,
     pub outgoing_message_handler: W2,
     pub upstream_proxy: Option<hyper_proxy::Proxy>,
+    pub cache_size: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -80,6 +81,7 @@ pub async fn start_proxy<F, R1, R2, W1, W2>(
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
+        cache_size,
     }: ProxyConfig<F, R1, R2, W1, W2>,
 ) -> Result<(), Error>
 where
@@ -92,7 +94,7 @@ where
     validate_key(&private_key)?;
 
     let client = gen_client(upstream_proxy);
-    let ca = CertificateAuthority::new(private_key, 1_000);
+    let ca = CertificateAuthority::new(private_key, cache_size.unwrap_or_else(|| 1_000));
 
     let make_service = make_service_fn(move |_| {
         let client = client.clone();

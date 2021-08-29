@@ -35,6 +35,7 @@ async fn main() {
         outgoing_message_handler: |msg| msg,
         private_key: key,
         upstream_proxy: None,
+        cache_size: None,
     };
 
     if let Err(e) = start_proxy(proxy_config).await {
