@@ -383,7 +383,7 @@ where
         .await
 }
 
-pub fn validate_key(key_pair: &rustls::PrivateKey) -> Result<(), RcgenError> {
+fn validate_key(key_pair: &rustls::PrivateKey) -> Result<(), RcgenError> {
     rcgen::KeyPair::from_der(&key_pair.0)?;
     Ok(())
 }
