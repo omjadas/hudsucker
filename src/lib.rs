@@ -12,17 +12,22 @@ use hyper::{
     upgrade::Upgraded,
     Body, Client, Method, Request, Response, Server,
 };
-use hyper_proxy::ProxyConnector;
+use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
 use log::*;
 use rcgen::RcgenError;
 use rewind::Rewind;
-use rustls::ClientConfig;
+use rustls::{Certificate, ClientConfig, PrivateKey};
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
-use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream};
 use trait_set::trait_set;
+
+pub use hyper::http;
+pub use hyper_proxy;
+pub use rustls;
+pub use tokio_tungstenite::tungstenite;
 
 #[derive(Clone)]
 pub enum HttpClient {
@@ -46,12 +51,13 @@ where
 {
     pub listen_addr: SocketAddr,
     pub shutdown_signal: F,
-    pub private_key: rustls::PrivateKey,
+    pub private_key: PrivateKey,
+    pub ca_cert: Certificate,
     pub request_handler: R1,
     pub response_handler: R2,
     pub incoming_message_handler: W1,
     pub outgoing_message_handler: W2,
-    pub upstream_proxy: Option<hyper_proxy::Proxy>,
+    pub upstream_proxy: Option<UpstreamProxy>,
     pub cache_size: Option<usize>,
 }
 
@@ -76,6 +82,7 @@ pub async fn start_proxy<F, R1, R2, W1, W2>(
         listen_addr,
         shutdown_signal,
         private_key,
+        ca_cert,
         request_handler,
         response_handler,
         incoming_message_handler,
@@ -94,7 +101,7 @@ where
     validate_key(&private_key)?;
 
     let client = gen_client(upstream_proxy);
-    let ca = CertificateAuthority::new(private_key, cache_size.unwrap_or_else(|| 1_000));
+    let ca = CertificateAuthority::new(private_key, ca_cert, cache_size.unwrap_or_else(|| 1_000));
 
     let make_service = make_service_fn(move |_| {
         let client = client.clone();
@@ -129,7 +136,7 @@ where
         .map_err(|err| err.into())
 }
 
-fn gen_client(upstream_proxy: Option<hyper_proxy::Proxy>) -> HttpClient {
+fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> HttpClient {
     let mut http = HttpConnector::new();
     http.enforce_http(false);
 
@@ -298,7 +305,7 @@ async fn handle_websocket<R1, R2, W1, W2>(
                     let message = incoming_message_handler(message);
                     match client_sink.send(message).await {
                         Err(tungstenite::Error::ConnectionClosed) => (),
-                        Err(e) => println!("websocket send error: {}", e),
+                        Err(e) => error!("websocket send error: {}", e),
                         _ => (),
                     }
                 }
@@ -314,7 +321,7 @@ async fn handle_websocket<R1, R2, W1, W2>(
                     let message = outgoing_message_handler(message);
                     match server_sink.send(message).await {
                         Err(tungstenite::Error::ConnectionClosed) => (),
-                        Err(e) => println!("websocket send error: {}", e),
+                        Err(e) => error!("websocket send error: {}", e),
                         _ => (),
                     }
                 }

@@ -7,13 +7,19 @@ use rustls::{NoClientAuth, ServerConfig};
 #[derive(Clone)]
 pub struct CertificateAuthority {
     private_key: rustls::PrivateKey,
+    cert: rustls::Certificate,
     cache: Cache<Authority, ServerConfig>,
 }
 
 impl CertificateAuthority {
-    pub fn new(private_key: rustls::PrivateKey, cache_size: usize) -> CertificateAuthority {
+    pub fn new(
+        private_key: rustls::PrivateKey,
+        cert: rustls::Certificate,
+        cache_size: usize,
+    ) -> CertificateAuthority {
         CertificateAuthority {
             private_key,
+            cert,
             cache: Cache::new(cache_size),
         }
     }
@@ -35,9 +41,16 @@ impl CertificateAuthority {
             .expect("Failed to find compatible algorithm");
         params.key_pair = Some(key_pair);
 
+        let key_pair = KeyPair::from_der(&self.private_key.0).expect("Failed to parse private key");
+
+        // TODO: handle Err
+        let ca_cert_params =
+            rcgen::CertificateParams::from_ca_cert_der(&self.cert.0, key_pair).unwrap();
+        let ca_cert = rcgen::Certificate::from_params(ca_cert_params).unwrap();
+
         let cert = rcgen::Certificate::from_params(params).expect("Failed to generate certificate");
         rustls::Certificate(
-            cert.serialize_der()
+            cert.serialize_der_with_signer(&ca_cert)
                 .expect("Failed to serialize certificate"),
         )
     }
@@ -48,7 +61,7 @@ impl CertificateAuthority {
         }
 
         let mut server_cfg = ServerConfig::new(NoClientAuth::new());
-        let certs = vec![self.gen_cert(authority); 1];
+        let certs = vec![self.gen_cert(authority)];
 
         server_cfg
             .set_single_cert(certs, self.private_key.clone())
