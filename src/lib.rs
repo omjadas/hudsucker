@@ -189,22 +189,16 @@ async fn process_connect(
                 // TODO: handle Err
                 let mut buffer = [0; 3];
                 let bytes_read = upgraded.read(&mut buffer).await.unwrap();
+                let upgraded = Rewind::new_buffered(
+                    upgraded,
+                    bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
+                );
 
                 if bytes_read == 3 && buffer == [71, 69, 84] {
-                    let upgraded = Rewind::new_buffered(
-                        upgraded,
-                        bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
-                    );
-
                     if let Err(e) = serve_websocket(state, upgraded).await {
                         error!("websocket error: {}", e);
                     }
                 } else {
-                    let upgraded = Rewind::new_buffered(
-                        upgraded,
-                        bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
-                    );
-
                     let stream = TlsAcceptor::from(server_config)
                         .accept(upgraded)
                         .await
