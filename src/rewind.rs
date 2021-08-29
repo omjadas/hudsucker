@@ -12,6 +12,7 @@ pub(crate) struct Rewind<T> {
 }
 
 impl<T> Rewind<T> {
+    #[allow(dead_code)]
     pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,
@@ -26,11 +27,13 @@ impl<T> Rewind<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn into_inner(self) -> (T, Bytes) {
         (self.inner, self.pre.unwrap_or_else(Bytes::new))
     }
