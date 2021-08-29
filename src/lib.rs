@@ -42,6 +42,14 @@ pub struct ProxyConfig<F: Future<Output = ()>> {
     pub upstream_proxy: Option<hyper_proxy::Proxy>,
 }
 
+#[derive(Clone)]
+struct ProxyState {
+    pub ca: CertificateAuthority,
+    pub client: HttpClient,
+    pub request_handler: RequestHandler,
+    pub response_handler: ResponseHandler,
+}
+
 pub async fn start_proxy<F>(
     ProxyConfig {
         listen_addr,
@@ -68,11 +76,13 @@ where
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
                 proxy(
+                    ProxyState {
+                        ca: ca.clone(),
+                        client: client.clone(),
+                        request_handler,
+                        response_handler,
+                    },
                     req,
-                    client.clone(),
-                    ca.clone(),
-                    request_handler,
-                    response_handler,
                 )
             }))
         }
@@ -117,27 +127,19 @@ fn gen_client(upstream_proxy: Option<hyper_proxy::Proxy>) -> HttpClient {
     }
 }
 
-async fn proxy(
-    req: Request<Body>,
-    client: HttpClient,
-    ca: CertificateAuthority,
-    handle_req: RequestHandler,
-    handle_res: ResponseHandler,
-) -> Result<Response<Body>, hyper::Error> {
+async fn proxy(state: ProxyState, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     if req.method() == Method::CONNECT {
-        process_connect(req, client, ca, handle_req, handle_res).await
+        process_connect(state, req).await
     } else {
-        process_request(req, client, handle_req, handle_res).await
+        process_request(state, req).await
     }
 }
 
 async fn process_request(
+    state: ProxyState,
     req: Request<Body>,
-    client: HttpClient,
-    handle_req: RequestHandler,
-    handle_res: ResponseHandler,
 ) -> Result<Response<Body>, hyper::Error> {
-    let (req, res) = handle_req(req);
+    let (req, res) = (state.request_handler)(req);
     if let Some(res) = res {
         return Ok(res);
     }
@@ -166,29 +168,25 @@ async fn process_request(
         return Ok(res);
     }
 
-    let res = match client {
+    let res = match state.client {
         HttpClient::Proxy(client) => client.request(req).await?,
         HttpClient::Https(client) => client.request(req).await?,
     };
 
-    Ok(handle_res(res))
+    Ok((state.response_handler)(res))
 }
 
 async fn process_connect(
+    state: ProxyState,
     req: Request<Body>,
-    client: HttpClient,
-    ca: CertificateAuthority,
-    handle_req: RequestHandler,
-    handle_res: ResponseHandler,
 ) -> Result<Response<Body>, hyper::Error> {
     tokio::task::spawn(async move {
         let authority = req.uri().authority().unwrap();
-        let server_config = Arc::new(ca.gen_server_config(authority).await);
+        let server_config = Arc::new(state.ca.gen_server_config(authority).await);
 
         match hyper::upgrade::on(req).await {
-            Ok(upgraded) => {
+            Ok(mut upgraded) => {
                 // TODO: handle Err
-                let mut upgraded = upgraded;
                 let mut buffer = [0; 3];
                 let bytes_read = upgraded.read(&mut buffer).await.unwrap();
 
@@ -198,8 +196,7 @@ async fn process_connect(
                         bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                     );
 
-                    if let Err(e) = serve_websocket(upgraded, client, handle_req, handle_res).await
-                    {
+                    if let Err(e) = serve_websocket(state, upgraded).await {
                         error!("websocket error: {}", e);
                     }
                 } else {
@@ -213,7 +210,7 @@ async fn process_connect(
                         .await
                         .unwrap();
 
-                    if let Err(e) = serve_https(stream, client, handle_req, handle_res).await {
+                    if let Err(e) = serve_https(state, stream).await {
                         let e_string = e.to_string();
                         if !e_string.starts_with("error shutting down connection") {
                             error!("https error: {}", e);
@@ -249,12 +246,7 @@ async fn handle_websocket(server_socket: WebSocketStream<Upgraded>, uri: &http::
     });
 }
 
-async fn serve_websocket(
-    stream: Rewind<Upgraded>,
-    client: HttpClient,
-    handle_req: RequestHandler,
-    handle_res: ResponseHandler,
-) -> Result<(), hyper::Error> {
+async fn serve_websocket(state: ProxyState, stream: Rewind<Upgraded>) -> Result<(), hyper::Error> {
     let service = service_fn(|req| {
         let authority = req.headers().get("host").unwrap().to_str().unwrap();
         let uri = http::uri::Builder::new()
@@ -266,7 +258,7 @@ async fn serve_websocket(
         let (mut parts, body) = req.into_parts();
         parts.uri = uri;
         let req = Request::from_parts(parts, body);
-        process_request(req, client.clone(), handle_req, handle_res)
+        process_request(state.clone(), req)
     });
 
     Http::new()
@@ -276,10 +268,8 @@ async fn serve_websocket(
 }
 
 async fn serve_https(
+    state: ProxyState,
     stream: tokio_rustls::server::TlsStream<Rewind<Upgraded>>,
-    client: HttpClient,
-    handle_req: RequestHandler,
-    handle_res: ResponseHandler,
 ) -> Result<(), hyper::Error> {
     let service = service_fn(|req| {
         let authority = req.headers().get("host").unwrap().to_str().unwrap();
@@ -292,7 +282,7 @@ async fn serve_https(
         let (mut parts, body) = req.into_parts();
         parts.uri = uri;
         let req = Request::from_parts(parts, body);
-        process_request(req, client.clone(), handle_req, handle_res)
+        process_request(state.clone(), req)
     });
     Http::new()
         .serve_connection(stream, service)
