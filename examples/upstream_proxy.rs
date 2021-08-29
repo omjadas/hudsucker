@@ -13,12 +13,12 @@ async fn shutdown_signal() {
 async fn main() {
     env_logger::init();
 
-    let req_handler: RequestHandler = |req| {
+    let req_handler = |req| {
         println!("{:?}", req);
         (req, None)
     };
 
-    let res_handler: ResponseHandler = |res| {
+    let res_handler = |res| {
         println!("{:?}", res);
         res
     };
@@ -31,20 +31,20 @@ async fn main() {
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
         shutdown_signal: shutdown_signal(),
-        request_handler: Some(req_handler),
-        response_handler: Some(res_handler),
-        incoming_websocket_handler: None,
-        outgoing_websocket_handler: None,
+        request_handler: req_handler,
+        response_handler: res_handler,
+        incoming_message_handler: |msg| msg,
+        outgoing_message_handler: |msg| msg,
         private_key: key.clone(),
         upstream_proxy: None,
     };
 
     let proxy_config_2 = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        request_handler: None,
-        response_handler: None,
-        incoming_websocket_handler: None,
-        outgoing_websocket_handler: None,
+        request_handler: |req| (req, None),
+        response_handler: |res| res,
+        incoming_message_handler: |msg| msg,
+        outgoing_message_handler: |msg| msg,
         shutdown_signal: shutdown_signal(),
         private_key: key,
         upstream_proxy: Some(Proxy::new(
