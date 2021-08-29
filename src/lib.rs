@@ -1,8 +1,11 @@
 mod certificate_authority;
 mod error;
+mod rewind;
+use rewind::Rewind;
 
 use certificate_authority::CertificateAuthority;
 use error::Error;
+use futures::{sink::SinkExt, stream::StreamExt};
 use hyper::{
     client::HttpConnector,
     server::conn::Http,
@@ -16,7 +19,9 @@ use log::*;
 use rcgen::RcgenError;
 use rustls::ClientConfig;
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
+use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
+use tokio_tungstenite::{connect_async, WebSocketStream};
 
 pub type RequestHandler = fn(Request<Body>) -> (Request<Body>, Option<Response<Body>>);
 pub type ResponseHandler = fn(Response<Body>) -> Response<Body>;
@@ -137,6 +142,30 @@ async fn process_request(
         return Ok(res);
     }
 
+    if hyper_tungstenite::is_upgrade_request(&req) {
+        let scheme = if req.uri().scheme().unwrap() == "http" {
+            "ws"
+        } else {
+            "wss"
+        };
+
+        let uri = http::uri::Builder::new()
+            .scheme(scheme)
+            .authority(req.uri().authority().unwrap().to_owned())
+            .path_and_query(req.uri().path_and_query().unwrap().to_owned())
+            .build()
+            .unwrap();
+
+        let (res, websocket) = hyper_tungstenite::upgrade(req, None).unwrap();
+
+        tokio::spawn(async move {
+            let server_socket = websocket.await.unwrap();
+            handle_websocket(server_socket, &uri).await;
+        });
+
+        return Ok(res);
+    }
+
     let res = match client {
         HttpClient::Proxy(client) => client.request(req).await?,
         HttpClient::Https(client) => client.request(req).await?,
@@ -152,22 +181,43 @@ async fn process_connect(
     handle_req: RequestHandler,
     handle_res: ResponseHandler,
 ) -> Result<Response<Body>, hyper::Error> {
-    let authority = req.uri().authority().unwrap();
-    let server_config = Arc::new(ca.gen_server_config(authority).await);
-
     tokio::task::spawn(async move {
+        let authority = req.uri().authority().unwrap();
+        let server_config = Arc::new(ca.gen_server_config(authority).await);
+
         match hyper::upgrade::on(req).await {
             Ok(upgraded) => {
                 // TODO: handle Err
-                let stream = TlsAcceptor::from(server_config)
-                    .accept(upgraded)
-                    .await
-                    .unwrap();
+                let mut upgraded = upgraded;
+                let mut buffer = [0; 3];
+                let bytes_read = upgraded.read(&mut buffer).await.unwrap();
 
-                if let Err(e) = serve_connection(stream, client, handle_req, handle_res).await {
-                    let e_string = e.to_string();
-                    if !e_string.starts_with("error shutting down connection") {
-                        error!("{}", e_string);
+                if bytes_read == 3 && buffer == [71, 69, 84] {
+                    let upgraded = Rewind::new_buffered(
+                        upgraded,
+                        bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
+                    );
+
+                    if let Err(e) = serve_websocket(upgraded, client, handle_req, handle_res).await
+                    {
+                        error!("websocket error: {}", e);
+                    }
+                } else {
+                    let upgraded = Rewind::new_buffered(
+                        upgraded,
+                        bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
+                    );
+
+                    let stream = TlsAcceptor::from(server_config)
+                        .accept(upgraded)
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = serve_https(stream, client, handle_req, handle_res).await {
+                        let e_string = e.to_string();
+                        if !e_string.starts_with("error shutting down connection") {
+                            error!("https error: {}", e);
+                        }
                     }
                 }
             }
@@ -178,8 +228,55 @@ async fn process_connect(
     Ok(Response::new(Body::empty()))
 }
 
-async fn serve_connection(
-    stream: tokio_rustls::server::TlsStream<Upgraded>,
+async fn handle_websocket(server_socket: WebSocketStream<Upgraded>, uri: &http::Uri) {
+    let (client_socket, _) = connect_async(uri).await.unwrap();
+
+    let (mut server_sink, mut server_stream) = server_socket.split();
+    let (mut client_sink, mut client_stream) = client_socket.split();
+
+    tokio::spawn(async move {
+        while let Some(message) = server_stream.next().await {
+            // TODO: handle Err
+            client_sink.send(message.unwrap()).await.unwrap();
+        }
+    });
+
+    tokio::spawn(async move {
+        while let Some(message) = client_stream.next().await {
+            // TODO: handle Err
+            server_sink.send(message.unwrap()).await.unwrap();
+        }
+    });
+}
+
+async fn serve_websocket(
+    stream: Rewind<Upgraded>,
+    client: HttpClient,
+    handle_req: RequestHandler,
+    handle_res: ResponseHandler,
+) -> Result<(), hyper::Error> {
+    let service = service_fn(|req| {
+        let authority = req.headers().get("host").unwrap().to_str().unwrap();
+        let uri = http::uri::Builder::new()
+            .scheme("http")
+            .authority(authority)
+            .path_and_query(req.uri().to_string())
+            .build()
+            .unwrap();
+        let (mut parts, body) = req.into_parts();
+        parts.uri = uri;
+        let req = Request::from_parts(parts, body);
+        process_request(req, client.clone(), handle_req, handle_res)
+    });
+
+    Http::new()
+        .serve_connection(stream, service)
+        .with_upgrades()
+        .await
+}
+
+async fn serve_https(
+    stream: tokio_rustls::server::TlsStream<Rewind<Upgraded>>,
     client: HttpClient,
     handle_req: RequestHandler,
     handle_res: ResponseHandler,
@@ -197,7 +294,10 @@ async fn serve_connection(
         let req = Request::from_parts(parts, body);
         process_request(req, client.clone(), handle_req, handle_res)
     });
-    Http::new().serve_connection(stream, service).await
+    Http::new()
+        .serve_connection(stream, service)
+        .with_upgrades()
+        .await
 }
 
 pub fn validate_key(key_pair: &rustls::PrivateKey) -> Result<(), RcgenError> {

@@ -29,11 +29,11 @@ impl CertificateAuthority {
 
         // This should never panic
         let key_pair = KeyPair::from_der(&self.private_key.0).unwrap();
-        // TODO: not sure if this can panic or not as
+        // TODO: not sure if this can panic
         params.alg = key_pair.compatible_algs().next().unwrap();
         params.key_pair = Some(key_pair);
 
-        // TODO: handle Err
+        // TODO: not sure if this can panic
         let cert = rcgen::Certificate::from_params(params).unwrap();
         rustls::Certificate(cert.serialize_der().unwrap())
     }
