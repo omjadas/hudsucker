@@ -11,7 +11,7 @@ async fn shutdown_signal() {
 async fn main() {
     env_logger::init();
 
-    let req_handler: RequestHandler = |req| {
+    let req_handler: RequestHandler = move |req| {
         println!("{:?}", req);
         (req, None)
     };
@@ -31,6 +31,8 @@ async fn main() {
         shutdown_signal: shutdown_signal(),
         request_handler: Some(req_handler),
         response_handler: Some(res_handler),
+        incoming_websocket_handler: None,
+        outgoing_websocket_handler: None,
         private_key: key,
         upstream_proxy: None,
     };

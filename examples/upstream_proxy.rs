@@ -33,6 +33,8 @@ async fn main() {
         shutdown_signal: shutdown_signal(),
         request_handler: Some(req_handler),
         response_handler: Some(res_handler),
+        incoming_websocket_handler: None,
+        outgoing_websocket_handler: None,
         private_key: key.clone(),
         upstream_proxy: None,
     };
@@ -41,6 +43,8 @@ async fn main() {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         request_handler: None,
         response_handler: None,
+        incoming_websocket_handler: None,
+        outgoing_websocket_handler: None,
         shutdown_signal: shutdown_signal(),
         private_key: key,
         upstream_proxy: Some(Proxy::new(

@@ -1,7 +1,6 @@
 mod certificate_authority;
 mod error;
 mod rewind;
-use rewind::Rewind;
 
 use certificate_authority::CertificateAuthority;
 use error::Error;
@@ -17,14 +16,16 @@ use hyper_proxy::ProxyConnector;
 use hyper_rustls::HttpsConnector;
 use log::*;
 use rcgen::RcgenError;
+use rewind::Rewind;
 use rustls::ClientConfig;
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
-use tokio_tungstenite::{connect_async, WebSocketStream};
+use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
 
 pub type RequestHandler = fn(Request<Body>) -> (Request<Body>, Option<Response<Body>>);
 pub type ResponseHandler = fn(Response<Body>) -> Response<Body>;
+pub type WebsocketHandler = fn(Message) -> Message;
 
 #[derive(Clone)]
 pub enum HttpClient {
@@ -39,6 +40,8 @@ pub struct ProxyConfig<F: Future<Output = ()>> {
     pub private_key: rustls::PrivateKey,
     pub request_handler: Option<RequestHandler>,
     pub response_handler: Option<ResponseHandler>,
+    pub incoming_websocket_handler: Option<WebsocketHandler>,
+    pub outgoing_websocket_handler: Option<WebsocketHandler>,
     pub upstream_proxy: Option<hyper_proxy::Proxy>,
 }
 
@@ -48,6 +51,8 @@ struct ProxyState {
     pub client: HttpClient,
     pub request_handler: RequestHandler,
     pub response_handler: ResponseHandler,
+    pub incoming_websocket_handler: WebsocketHandler,
+    pub outgoing_websocket_handler: WebsocketHandler,
 }
 
 pub async fn start_proxy<F>(
@@ -57,6 +62,8 @@ pub async fn start_proxy<F>(
         private_key,
         request_handler,
         response_handler,
+        incoming_websocket_handler,
+        outgoing_websocket_handler,
         upstream_proxy,
     }: ProxyConfig<F>,
 ) -> Result<(), Error>
@@ -69,6 +76,8 @@ where
     let ca = CertificateAuthority::new(private_key, 1_000);
     let request_handler = request_handler.unwrap_or(|req| (req, None));
     let response_handler = response_handler.unwrap_or(|res| res);
+    let incoming_websocket_handler = incoming_websocket_handler.unwrap_or(|msg| msg);
+    let outgoing_websocket_handler = outgoing_websocket_handler.unwrap_or(|msg| msg);
 
     let make_service = make_service_fn(move |_| {
         let client = client.clone();
@@ -81,6 +90,8 @@ where
                         client: client.clone(),
                         request_handler,
                         response_handler,
+                        incoming_websocket_handler,
+                        outgoing_websocket_handler,
                     },
                     req,
                 )
@@ -162,7 +173,7 @@ async fn process_request(
 
         tokio::spawn(async move {
             let server_socket = websocket.await.unwrap();
-            handle_websocket(server_socket, &uri).await;
+            handle_websocket(state, server_socket, &uri).await;
         });
 
         return Ok(res);
@@ -196,7 +207,7 @@ async fn process_connect(
 
                 if bytes_read == 3 && buffer == [71, 69, 84] {
                     if let Err(e) = serve_websocket(state, upgraded).await {
-                        error!("websocket error: {}", e);
+                        error!("websocket connect error: {}", e);
                     }
                 } else {
                     let stream = TlsAcceptor::from(server_config)
@@ -207,7 +218,7 @@ async fn process_connect(
                     if let Err(e) = serve_https(state, stream).await {
                         let e_string = e.to_string();
                         if !e_string.starts_with("error shutting down connection") {
-                            error!("https error: {}", e);
+                            error!("https connect error: {}", e);
                         }
                     }
                 }
@@ -219,7 +230,15 @@ async fn process_connect(
     Ok(Response::new(Body::empty()))
 }
 
-async fn handle_websocket(server_socket: WebSocketStream<Upgraded>, uri: &http::Uri) {
+async fn handle_websocket(
+    ProxyState {
+        incoming_websocket_handler,
+        outgoing_websocket_handler,
+        ..
+    }: ProxyState,
+    server_socket: WebSocketStream<Upgraded>,
+    uri: &http::Uri,
+) {
     let (client_socket, _) = connect_async(uri).await.unwrap();
 
     let (mut server_sink, mut server_stream) = server_socket.split();
@@ -227,15 +246,33 @@ async fn handle_websocket(server_socket: WebSocketStream<Upgraded>, uri: &http::
 
     tokio::spawn(async move {
         while let Some(message) = server_stream.next().await {
-            // TODO: handle Err
-            client_sink.send(message.unwrap()).await.unwrap();
+            match message {
+                Ok(message) => {
+                    let message = incoming_websocket_handler(message);
+                    match client_sink.send(message).await {
+                        Err(tungstenite::Error::ConnectionClosed) => (),
+                        Err(e) => println!("websocket send error: {}", e),
+                        _ => (),
+                    }
+                }
+                Err(e) => error!("websocket message error: {}", e),
+            }
         }
     });
 
     tokio::spawn(async move {
         while let Some(message) = client_stream.next().await {
-            // TODO: handle Err
-            server_sink.send(message.unwrap()).await.unwrap();
+            match message {
+                Ok(message) => {
+                    let message = outgoing_websocket_handler(message);
+                    match server_sink.send(message).await {
+                        Err(tungstenite::Error::ConnectionClosed) => (),
+                        Err(e) => println!("websocket send error: {}", e),
+                        _ => (),
+                    }
+                }
+                Err(e) => error!("websocket message error: {}", e),
+            }
         }
     });
 }
