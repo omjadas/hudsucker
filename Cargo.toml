@@ -24,7 +24,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-rustls = "0.22"
 tokio-tungstenite = "0.15"
 trait-set = "0.2.0"
-webpki-roots = "0.21"
+webpki-roots = "0.22"
 
 [dev-dependencies]
 env_logger = "0.9"
