@@ -1,5 +1,5 @@
+use hudsucker::{rustls::internal::pemfile, *};
 use log::*;
-use rustproxy::{rustls::internal::pemfile, *};
 use std::{io::BufReader, net::SocketAddr};
 
 async fn shutdown_signal() {

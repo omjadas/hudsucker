@@ -1,10 +1,10 @@
 use futures::try_join;
-use log::*;
-use rustproxy::{
+use hudsucker::{
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
     *,
 };
+use log::*;
 use std::{io::BufReader, net::SocketAddr};
 
 async fn shutdown_signal() {
