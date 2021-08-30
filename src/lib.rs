@@ -130,6 +130,7 @@ where
     Server::bind(&listen_addr)
         .http1_preserve_header_case(true)
         .http1_title_case_headers(true)
+        .http1_only(true)
         .serve(make_service)
         .with_graceful_shutdown(shutdown_signal)
         .await
@@ -142,6 +143,7 @@ fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> HttpClient {
 
     let mut config = ClientConfig::new();
     config.ct_logs = Some(&ct_logs::LOGS);
+    config.set_protocols(&[b"http/1.1".to_vec()]);
     config
         .root_store
         .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
@@ -371,17 +373,20 @@ where
     W1: MessageHandler,
     W2: MessageHandler,
 {
-    let service = service_fn(|req| {
-        let authority = req.headers().get("host").unwrap().to_str().unwrap();
-        let uri = http::uri::Builder::new()
-            .scheme("https")
-            .authority(authority)
-            .path_and_query(req.uri().to_string())
-            .build()
-            .unwrap();
-        let (mut parts, body) = req.into_parts();
-        parts.uri = uri;
-        let req = Request::from_parts(parts, body);
+    let service = service_fn(|mut req| {
+        if req.version() == http::Version::HTTP_11 {
+            let authority = req.headers().get("host").unwrap().to_str().unwrap();
+            let uri = http::uri::Builder::new()
+                .scheme("https")
+                .authority(authority)
+                .path_and_query(req.uri().to_string())
+                .build()
+                .unwrap();
+            let (mut parts, body) = req.into_parts();
+            parts.uri = uri;
+            req = Request::from_parts(parts, body)
+        };
+
         process_request(state.clone(), req)
     });
     Http::new()

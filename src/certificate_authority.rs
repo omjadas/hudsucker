@@ -66,6 +66,7 @@ impl CertificateAuthority {
         server_cfg
             .set_single_cert(certs, self.private_key.clone())
             .expect("Failed to set certificate");
+        server_cfg.set_protocols(&[b"http/1.1".to_vec()]);
 
         self.cache
             .insert(authority.clone(), server_cfg.clone())
