@@ -1,6 +1,6 @@
 use futures::try_join;
 use log::*;
-use rustproxy::{
+use hudsucker::{
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
     *,
