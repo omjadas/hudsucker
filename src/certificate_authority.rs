@@ -5,8 +5,11 @@ use moka::future::Cache;
 use rcgen::{KeyPair, RcgenError, SanType};
 use rustls::{NoClientAuth, ServerConfig};
 
-/// Used to issue certificates for use when communicating with clients. Clients should trust the
-/// provided certificate.
+/// Issues certificates for use when communicating with clients.
+///
+/// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
+/// up to a max size that is provided when creating the authority. Clients should be configured to
+/// either trust the provided root certificate, or to ignore certificate errors.
 #[derive(Clone)]
 pub struct CertificateAuthority {
     private_key: rustls::PrivateKey,
@@ -15,6 +18,10 @@ pub struct CertificateAuthority {
 }
 
 impl CertificateAuthority {
+    /// Attempts to create a new certificate authority.
+    ///
+    /// This will fail if the provided key or certificate is invalid, or if the key does not match
+    /// the certificate.
     pub fn new(
         private_key: rustls::PrivateKey,
         ca_cert: rustls::Certificate,

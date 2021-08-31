@@ -4,4 +4,14 @@
 [![docs.rs](https://docs.rs/hudsucker/badge.svg)](https://docs.rs/hudsucker)
 [![Build](https://github.com/omjadas/hudsucker/actions/workflows/build.yml/badge.svg)](https://github.com/omjadas/hudsucker/actions/workflows/build.yml)
 
-MITM HTTP/S proxy in Rust.
+Hudsucker is a MITM HTTP/S proxy written in Rust.
+
+## Features
+
+- Modify HTTP/S requests
+- Modify HTTP/S responses
+- Modify websocket messages
+
+## Usage
+
+For usage, refer to the [provided examples](https://github.com/omjadas/hudsucker/tree/main/examples).

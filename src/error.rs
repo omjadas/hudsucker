@@ -1,7 +1,7 @@
 use rcgen::RcgenError;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("invalid CA")]
     Tls(#[from] RcgenError),
