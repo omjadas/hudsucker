@@ -23,7 +23,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream};
 use trait_set::trait_set;
 
 pub use certificate_authority::CertificateAuthority;
-pub use hyper::http;
+pub use http;
 pub use hyper_proxy;
 pub use rustls;
 pub use tokio_tungstenite::tungstenite;
