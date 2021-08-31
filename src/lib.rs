@@ -1,4 +1,4 @@
-//! Hudsucker is a MITM HTTP/S that allows you to:
+//! Hudsucker is a MITM HTTP/S proxy that allows you to:
 //!
 //! - Modify HTTP/S requests
 //! - Modify HTTP/S responses
