@@ -2,8 +2,14 @@
 name = "hudsucker"
 version = "0.1.0"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Intercepting HTTP/S proxy"
+documentation = "https://docs.rs/hudsucker"
+readme = "README.md"
+homepage = "https://github.com/omjadas/hudsucker"
+repository = "https://github.com/omjadas/hudsucker"
+license = "MIT"
+keywords = ["http", "proxy"]
+categories = ["network-programming"]
 
 [dependencies]
 bytes = "1"
