@@ -2,7 +2,6 @@ mod certificate_authority;
 mod error;
 mod rewind;
 
-use error::Error;
 use futures::{sink::SinkExt, stream::StreamExt};
 use http::uri::PathAndQuery;
 use hyper::{
@@ -21,9 +20,9 @@ use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream};
-use trait_set::trait_set;
 
 pub use certificate_authority::CertificateAuthority;
+pub use error::Error;
 pub use http;
 pub use hyper_proxy;
 pub use rustls;
@@ -35,18 +34,38 @@ enum MaybeProxyClient {
     Https(Client<HttpsConnector<HttpConnector>>),
 }
 
+/// Enum representing either an HTTP request or response
 #[derive(Debug)]
 pub enum RequestOrResponse {
     Request(Request<Body>),
     Response(Response<Body>),
 }
 
-trait_set! {
-    pub trait RequestHandler = FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static;
-    pub trait ResponseHandler = FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static;
-    pub trait MessageHandler = FnMut(Message) -> Message + Send + Sync + Clone + 'static;
+/// Handler for HTTP requests
+pub trait RequestHandler:
+    FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static
+{
+}
+impl<T> RequestHandler for T where
+    T: FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static
+{
 }
 
+/// Handler for HTTP responses
+pub trait ResponseHandler:
+    FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static
+{
+}
+impl<T> ResponseHandler for T where
+    T: FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static
+{
+}
+
+/// Handler for websocket messages
+pub trait MessageHandler: FnMut(Message) -> Message + Send + Sync + Clone + 'static {}
+impl<T> MessageHandler for T where T: FnMut(Message) -> Message + Send + Sync + Clone + 'static {}
+
+/// Configuration for the proxy server.
 #[derive(Clone)]
 pub struct ProxyConfig<F: Future<Output = ()>, R1, R2, W1, W2>
 where
@@ -81,6 +100,8 @@ where
     pub outgoing_message_handler: W2,
 }
 
+/// Start a proxy server on the given address. The proxy will run until the provided shutdown signal
+/// resolves.
 pub async fn start_proxy<F, R1, R2, W1, W2>(
     ProxyConfig {
         listen_addr,

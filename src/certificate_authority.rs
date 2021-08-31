@@ -5,6 +5,8 @@ use moka::future::Cache;
 use rcgen::{KeyPair, RcgenError, SanType};
 use rustls::{NoClientAuth, ServerConfig};
 
+/// Used to issue certificates for use when communicating with clients. Clients should trust the
+/// provided certificate.
 #[derive(Clone)]
 pub struct CertificateAuthority {
     private_key: rustls::PrivateKey,
