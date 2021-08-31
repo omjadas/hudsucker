@@ -36,6 +36,8 @@ async fn main() {
         .unwrap()
         .remove(0);
 
+    let ca = CertificateAuthority::new(private_key, ca_cert, 1_000).unwrap();
+
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
         shutdown_signal: shutdown_signal(),
@@ -43,10 +45,8 @@ async fn main() {
         response_handler,
         incoming_message_handler: |msg| msg,
         outgoing_message_handler: |msg| msg,
-        private_key: private_key.clone(),
-        ca_cert: ca_cert.clone(),
         upstream_proxy: None,
-        cache_size: None,
+        ca: ca.clone(),
     };
 
     let proxy_config_2 = ProxyConfig {
@@ -56,13 +56,11 @@ async fn main() {
         incoming_message_handler: |msg| msg,
         outgoing_message_handler: |msg| msg,
         shutdown_signal: shutdown_signal(),
-        private_key,
-        ca_cert,
         upstream_proxy: Some(UpstreamProxy::new(
             Intercept::All,
             "http://127.0.0.1:3001".parse().unwrap(),
         )),
-        cache_size: None,
+        ca,
     };
 
     let proxy_1 = start_proxy(proxy_config);

@@ -2,7 +2,6 @@ mod certificate_authority;
 mod error;
 mod rewind;
 
-use certificate_authority::CertificateAuthority;
 use error::Error;
 use futures::{sink::SinkExt, stream::StreamExt};
 use hyper::{
@@ -15,22 +14,22 @@ use hyper::{
 use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
 use log::*;
-use rcgen::RcgenError;
 use rewind::Rewind;
-use rustls::{Certificate, ClientConfig, PrivateKey};
+use rustls::ClientConfig;
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream};
 use trait_set::trait_set;
 
+pub use certificate_authority::CertificateAuthority;
 pub use hyper::http;
 pub use hyper_proxy;
 pub use rustls;
 pub use tokio_tungstenite::tungstenite;
 
 #[derive(Clone)]
-pub enum HttpClient {
+enum HttpClient {
     Proxy(Client<ProxyConnector<HttpsConnector<HttpConnector>>>),
     Https(Client<HttpsConnector<HttpConnector>>),
 }
@@ -51,14 +50,12 @@ where
 {
     pub listen_addr: SocketAddr,
     pub shutdown_signal: F,
-    pub private_key: PrivateKey,
-    pub ca_cert: Certificate,
+    pub ca: CertificateAuthority,
     pub request_handler: R1,
     pub response_handler: R2,
     pub incoming_message_handler: W1,
     pub outgoing_message_handler: W2,
     pub upstream_proxy: Option<UpstreamProxy>,
-    pub cache_size: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -81,14 +78,12 @@ pub async fn start_proxy<F, R1, R2, W1, W2>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
-        private_key,
-        ca_cert,
+        ca,
         request_handler,
         response_handler,
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
-        cache_size,
     }: ProxyConfig<F, R1, R2, W1, W2>,
 ) -> Result<(), Error>
 where
@@ -98,10 +93,7 @@ where
     W1: MessageHandler,
     W2: MessageHandler,
 {
-    validate_key(&private_key)?;
-
     let client = gen_client(upstream_proxy);
-    let ca = CertificateAuthority::new(private_key, ca_cert, cache_size.unwrap_or_else(|| 1_000));
 
     let make_service = make_service_fn(move |_| {
         let client = client.clone();
@@ -248,15 +240,15 @@ where
 
         match hyper::upgrade::on(req).await {
             Ok(mut upgraded) => {
+                let mut buffer = [0; 4];
                 // TODO: handle Err
-                let mut buffer = [0; 3];
                 let bytes_read = upgraded.read(&mut buffer).await.unwrap();
                 let upgraded = Rewind::new_buffered(
                     upgraded,
                     bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                 );
 
-                if bytes_read == 3 && buffer == [71, 69, 84] {
+                if bytes_read == 4 && buffer == *b"GET " {
                     if let Err(e) = serve_websocket(state, upgraded).await {
                         error!("websocket connect error: {}", e);
                     }
@@ -393,9 +385,4 @@ where
         .serve_connection(stream, service)
         .with_upgrades()
         .await
-}
-
-fn validate_key(key_pair: &rustls::PrivateKey) -> Result<(), RcgenError> {
-    rcgen::KeyPair::from_der(&key_pair.0)?;
-    Ok(())
 }

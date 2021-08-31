@@ -26,6 +26,8 @@ async fn main() {
         .unwrap()
         .remove(0);
 
+    let ca = CertificateAuthority::new(private_key, ca_cert, 1_000).unwrap();
+
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
@@ -33,10 +35,8 @@ async fn main() {
         response_handler,
         incoming_message_handler,
         outgoing_message_handler,
-        private_key,
-        ca_cert,
         upstream_proxy: None,
-        cache_size: None,
+        ca,
     };
 
     if let Err(e) = start_proxy(proxy_config).await {
