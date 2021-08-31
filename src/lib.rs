@@ -29,13 +29,19 @@ pub use rustls;
 pub use tokio_tungstenite::tungstenite;
 
 #[derive(Clone)]
-enum HttpClient {
+enum MaybeProxyClient {
     Proxy(Client<ProxyConnector<HttpsConnector<HttpConnector>>>),
     Https(Client<HttpsConnector<HttpConnector>>),
 }
 
+#[derive(Debug)]
+pub enum RequestOrResponse {
+    Request(Request<Body>),
+    Response(Response<Body>),
+}
+
 trait_set! {
-    pub trait RequestHandler = FnMut(Request<Body>) -> (Request<Body>, Option<Response<Body>>) + Send + Sync + Clone + 'static;
+    pub trait RequestHandler = FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static;
     pub trait ResponseHandler = FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static;
     pub trait MessageHandler = FnMut(Message) -> Message + Send + Sync + Clone + 'static;
 }
@@ -67,7 +73,7 @@ where
     W2: MessageHandler,
 {
     pub ca: CertificateAuthority,
-    pub client: HttpClient,
+    pub client: MaybeProxyClient,
     pub request_handler: R1,
     pub response_handler: R2,
     pub incoming_message_handler: W1,
@@ -129,7 +135,7 @@ where
         .map_err(|err| err.into())
 }
 
-fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> HttpClient {
+fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> MaybeProxyClient {
     let mut http = HttpConnector::new();
     http.enforce_http(false);
 
@@ -144,14 +150,14 @@ fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> HttpClient {
 
     if let Some(proxy) = upstream_proxy {
         let connector = ProxyConnector::from_proxy(https, proxy).unwrap();
-        return HttpClient::Proxy(
+        return MaybeProxyClient::Proxy(
             Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
                 .build(connector),
         );
     } else {
-        HttpClient::Https(
+        MaybeProxyClient::Https(
             Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
@@ -187,10 +193,10 @@ where
     W1: MessageHandler,
     W2: MessageHandler,
 {
-    let (req, res) = (state.request_handler)(req);
-    if let Some(res) = res {
-        return Ok(res);
-    }
+    let req = match (state.request_handler)(req) {
+        RequestOrResponse::Request(req) => req,
+        RequestOrResponse::Response(res) => return Ok(res),
+    };
 
     if hyper_tungstenite::is_upgrade_request(&req) {
         let scheme = if req.uri().scheme().unwrap() == "http" {
@@ -217,11 +223,11 @@ where
     }
 
     let res = match state.client {
-        HttpClient::Proxy(client) => client.request(req).await?,
-        HttpClient::Https(client) => client.request(req).await?,
+        MaybeProxyClient::Proxy(client) => client.request(req).await?,
+        MaybeProxyClient::Https(client) => client.request(req).await?,
     };
 
-    Ok(res)
+    Ok((state.response_handler)(res))
 }
 
 async fn process_connect<R1, R2, W1, W2>(

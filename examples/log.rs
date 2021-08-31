@@ -14,7 +14,7 @@ async fn main() {
 
     let request_handler = |req| {
         println!("{:?}", req);
-        (req, None)
+        RequestOrResponse::Request(req)
     };
 
     let response_handler = |res| {

@@ -19,7 +19,7 @@ async fn main() {
 
     let request_handler = |req| {
         println!("{:?}", req);
-        (req, None)
+        RequestOrResponse::Request(req)
     };
 
     let response_handler = |res| {
@@ -51,7 +51,7 @@ async fn main() {
 
     let proxy_config_2 = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        request_handler: |req| (req, None),
+        request_handler: |req| RequestOrResponse::Request(req),
         response_handler: |res| res,
         incoming_message_handler: |msg| msg,
         outgoing_message_handler: |msg| msg,

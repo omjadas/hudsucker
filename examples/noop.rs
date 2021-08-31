@@ -12,7 +12,7 @@ async fn shutdown_signal() {
 async fn main() {
     env_logger::init();
 
-    let request_handler = |req| (req, None);
+    let request_handler = |req| RequestOrResponse::Request(req);
     let response_handler = |res| res;
     let incoming_message_handler = |msg| msg;
     let outgoing_message_handler = |msg| msg;
