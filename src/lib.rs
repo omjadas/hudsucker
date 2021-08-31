@@ -231,10 +231,9 @@ where
             hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
 
         tokio::spawn(async move {
-            let server_socket = websocket.await.expect(&format!(
-                "Failed to upgrade websocket connection for {}",
-                uri
-            ));
+            let server_socket = websocket
+                .await
+                .unwrap_or_else(|_| panic!("Failed to upgrade websocket connection for {}", uri));
             handle_websocket(state, server_socket, &uri).await;
         });
 
@@ -320,7 +319,7 @@ async fn handle_websocket<R1, R2, W1, W2>(
 {
     let (client_socket, _) = connect_async(uri)
         .await
-        .expect(&format!("Failed to open websocket connection to {}", uri));
+        .unwrap_or_else(|_| panic!("Failed to open websocket connection to {}", uri));
 
     let (mut server_sink, mut server_stream) = server_socket.split();
     let (mut client_sink, mut client_stream) = client_socket.split();
