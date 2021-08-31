@@ -4,6 +4,7 @@ mod rewind;
 
 use error::Error;
 use futures::{sink::SinkExt, stream::StreamExt};
+use http::uri::PathAndQuery;
 use hyper::{
     client::HttpConnector,
     server::conn::Http,
@@ -149,7 +150,10 @@ fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> MaybeProxyClient {
     let https: HttpsConnector<HttpConnector> = (http, config).into();
 
     if let Some(proxy) = upstream_proxy {
-        let connector = ProxyConnector::from_proxy(https, proxy).unwrap();
+        // The following can only panic when using the "rustls" hyper_proxy feature
+        let connector = ProxyConnector::from_proxy(https, proxy)
+            .expect("Failed to create upstream proxy connector");
+
         return MaybeProxyClient::Proxy(
             Client::builder()
                 .http1_title_case_headers(true)
@@ -199,23 +203,38 @@ where
     };
 
     if hyper_tungstenite::is_upgrade_request(&req) {
-        let scheme = if req.uri().scheme().unwrap() == "http" {
-            "ws"
-        } else {
-            "wss"
-        };
+        let scheme =
+            if req.uri().scheme().unwrap_or(&http::uri::Scheme::HTTP) == &http::uri::Scheme::HTTP {
+                "ws"
+            } else {
+                "wss"
+            };
 
         let uri = http::uri::Builder::new()
             .scheme(scheme)
-            .authority(req.uri().authority().unwrap().to_owned())
-            .path_and_query(req.uri().path_and_query().unwrap().to_owned())
+            .authority(
+                req.uri()
+                    .authority()
+                    .expect("Authority not included in request")
+                    .to_owned(),
+            )
+            .path_and_query(
+                req.uri()
+                    .path_and_query()
+                    .unwrap_or(&PathAndQuery::from_static("/"))
+                    .to_owned(),
+            )
             .build()
-            .unwrap();
+            .expect("Failed to build URI for websocket connection");
 
-        let (res, websocket) = hyper_tungstenite::upgrade(req, None).unwrap();
+        let (res, websocket) =
+            hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
 
         tokio::spawn(async move {
-            let server_socket = websocket.await.unwrap();
+            let server_socket = websocket.await.expect(&format!(
+                "Failed to upgrade websocket connection for {}",
+                uri
+            ));
             handle_websocket(state, server_socket, &uri).await;
         });
 
@@ -241,14 +260,20 @@ where
     W2: MessageHandler,
 {
     tokio::task::spawn(async move {
-        let authority = req.uri().authority().unwrap();
+        let authority = req
+            .uri()
+            .authority()
+            .expect("URI does not contain authority");
         let server_config = Arc::new(state.ca.gen_server_config(authority).await);
 
         match hyper::upgrade::on(req).await {
             Ok(mut upgraded) => {
                 let mut buffer = [0; 4];
-                // TODO: handle Err
-                let bytes_read = upgraded.read(&mut buffer).await.unwrap();
+                let bytes_read = upgraded
+                    .read(&mut buffer)
+                    .await
+                    .expect("Failed to read from upgraded connection");
+
                 let upgraded = Rewind::new_buffered(
                     upgraded,
                     bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
@@ -262,7 +287,7 @@ where
                     let stream = TlsAcceptor::from(server_config)
                         .accept(upgraded)
                         .await
-                        .unwrap();
+                        .expect("Failed to establish TLS connection with client");
 
                     if let Err(e) = serve_https(state, stream).await {
                         let e_string = e.to_string();
@@ -293,7 +318,9 @@ async fn handle_websocket<R1, R2, W1, W2>(
     W1: MessageHandler,
     W2: MessageHandler,
 {
-    let (client_socket, _) = connect_async(uri).await.unwrap();
+    let (client_socket, _) = connect_async(uri)
+        .await
+        .expect(&format!("Failed to open websocket connection to {}", uri));
 
     let (mut server_sink, mut server_stream) = server_socket.split();
     let (mut client_sink, mut client_stream) = client_socket.split();
@@ -342,13 +369,25 @@ where
     W2: MessageHandler,
 {
     let service = service_fn(|req| {
-        let authority = req.headers().get("host").unwrap().to_str().unwrap();
+        let authority = req
+            .headers()
+            .get(http::header::HOST)
+            .expect("Host is a required header")
+            .to_str()
+            .expect("Failed to convert host to str");
+
         let uri = http::uri::Builder::new()
-            .scheme("http")
+            .scheme(http::uri::Scheme::HTTP)
             .authority(authority)
-            .path_and_query(req.uri().to_string())
+            .path_and_query(
+                req.uri()
+                    .path_and_query()
+                    .unwrap_or(&PathAndQuery::from_static("/"))
+                    .to_owned(),
+            )
             .build()
-            .unwrap();
+            .expect("Failed to build URI");
+
         let (mut parts, body) = req.into_parts();
         parts.uri = uri;
         let req = Request::from_parts(parts, body);
@@ -373,13 +412,25 @@ where
 {
     let service = service_fn(|mut req| {
         if req.version() == http::Version::HTTP_11 {
-            let authority = req.headers().get("host").unwrap().to_str().unwrap();
+            let authority = req
+                .headers()
+                .get(http::header::HOST)
+                .expect("Host is a required header")
+                .to_str()
+                .expect("Failed to convert host to str");
+
             let uri = http::uri::Builder::new()
-                .scheme("https")
+                .scheme(http::uri::Scheme::HTTPS)
                 .authority(authority)
-                .path_and_query(req.uri().to_string())
+                .path_and_query(
+                    req.uri()
+                        .path_and_query()
+                        .unwrap_or(&PathAndQuery::from_static("/"))
+                        .to_owned(),
+                )
                 .build()
-                .unwrap();
+                .expect("Failed to build URI");
+
             let (mut parts, body) = req.into_parts();
             parts.uri = uri;
             req = Request::from_parts(parts, body)
