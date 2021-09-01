@@ -39,8 +39,8 @@ async fn main() {
         shutdown_signal: shutdown_signal(),
         request_handler,
         response_handler,
-        incoming_message_handler: |msg| msg,
-        outgoing_message_handler: |msg| msg,
+        incoming_message_handler: |msg| Some(msg),
+        outgoing_message_handler: |msg| Some(msg),
         upstream_proxy: None,
         ca,
     };

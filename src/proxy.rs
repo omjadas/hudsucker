@@ -161,7 +161,11 @@ where
             while let Some(message) = server_stream.next().await {
                 match message {
                     Ok(message) => {
-                        let message = incoming_message_handler(message);
+                        let message = match incoming_message_handler(message) {
+                            Some(message) => message,
+                            None => continue,
+                        };
+
                         match client_sink.send(message).await {
                             Err(tungstenite::Error::ConnectionClosed) => (),
                             Err(e) => error!("websocket send error: {}", e),
@@ -177,7 +181,11 @@ where
             while let Some(message) = client_stream.next().await {
                 match message {
                     Ok(message) => {
-                        let message = outgoing_message_handler(message);
+                        let message = match outgoing_message_handler(message) {
+                            Some(message) => message,
+                            None => continue,
+                        };
+
                         match server_sink.send(message).await {
                             Err(tungstenite::Error::ConnectionClosed) => (),
                             Err(e) => error!("websocket send error: {}", e),

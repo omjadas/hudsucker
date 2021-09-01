@@ -44,8 +44,8 @@ async fn main() {
         shutdown_signal: shutdown_signal(),
         request_handler,
         response_handler,
-        incoming_message_handler: |msg| msg,
-        outgoing_message_handler: |msg| msg,
+        incoming_message_handler: |msg| Some(msg),
+        outgoing_message_handler: |msg| Some(msg),
         upstream_proxy: None,
         ca: ca.clone(),
     };
@@ -54,8 +54,8 @@ async fn main() {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         request_handler: |req| RequestOrResponse::Request(req),
         response_handler: |res| res,
-        incoming_message_handler: |msg| msg,
-        outgoing_message_handler: |msg| msg,
+        incoming_message_handler: |msg| Some(msg),
+        outgoing_message_handler: |msg| Some(msg),
         shutdown_signal: shutdown_signal(),
         upstream_proxy: Some(UpstreamProxy::new(
             Intercept::All,

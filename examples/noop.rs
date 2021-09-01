@@ -14,8 +14,8 @@ async fn main() {
 
     let request_handler = |req| RequestOrResponse::Request(req);
     let response_handler = |res| res;
-    let incoming_message_handler = |msg| msg;
-    let outgoing_message_handler = |msg| msg;
+    let incoming_message_handler = |msg| Some(msg);
+    let outgoing_message_handler = |msg| Some(msg);
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
     let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");

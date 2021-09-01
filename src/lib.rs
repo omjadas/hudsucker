@@ -72,9 +72,16 @@ impl<T> ResponseHandler for T where
 
 /// Handler for websocket messages.
 ///
-/// The handler will be called for each websocket message. It can return a modified message.
-pub trait MessageHandler: FnMut(Message) -> Message + Send + Sync + Clone + 'static {}
-impl<T> MessageHandler for T where T: FnMut(Message) -> Message + Send + Sync + Clone + 'static {}
+/// The handler will be called for each websocket message. It can return an optional modified
+/// message. If None is returned the message will not be forwarded.
+pub trait MessageHandler:
+    FnMut(Message) -> Option<Message> + Send + Sync + Clone + 'static
+{
+}
+impl<T> MessageHandler for T where
+    T: FnMut(Message) -> Option<Message> + Send + Sync + Clone + 'static
+{
+}
 
 /// Configuration for the proxy server.
 ///
