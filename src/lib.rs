@@ -49,7 +49,7 @@ pub enum RequestOrResponse {
 /// response. If a request is returned, it will be sent to the upstream server. If a response is
 /// returned, it will be sent to the client.
 pub trait RequestHandler:
-    FnMut(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
+    FnOnce(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
     + Send
     + Sync
     + Clone
@@ -57,7 +57,7 @@ pub trait RequestHandler:
 {
 }
 impl<T> RequestHandler for T where
-    T: FnMut(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
+    T: FnOnce(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
         + Send
         + Sync
         + Clone
@@ -70,7 +70,7 @@ impl<T> RequestHandler for T where
 /// The handler will be called for each HTTP response. It can modify a response before it is
 /// forwarded to the client.
 pub trait ResponseHandler:
-    FnMut(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
+    FnOnce(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
     + Send
     + Sync
     + Clone
@@ -78,7 +78,7 @@ pub trait ResponseHandler:
 {
 }
 impl<T> ResponseHandler for T where
-    T: FnMut(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
+    T: FnOnce(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
         + Send
         + Sync
         + Clone
@@ -164,7 +164,7 @@ where
                 Proxy {
                     ca: ca.clone(),
                     client: client.clone(),
-                    request_handler: request_handler.clone(),
+                    request_handler: Some(request_handler.clone()),
                     response_handler: response_handler.clone(),
                     incoming_message_handler: incoming_message_handler.clone(),
                     outgoing_message_handler: outgoing_message_handler.clone(),

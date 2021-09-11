@@ -23,7 +23,7 @@ where
 {
     pub ca: CertificateAuthority,
     pub client: MaybeProxyClient,
-    pub request_handler: R1,
+    pub request_handler: Option<R1>,
     pub response_handler: R2,
     pub incoming_message_handler: W1,
     pub outgoing_message_handler: W2,
@@ -45,7 +45,12 @@ where
     }
 
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let req = match (self.request_handler)(req).await {
+        let req = match (self
+            .request_handler
+            .take()
+            .expect("Request handler is None"))(req)
+        .await
+        {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
