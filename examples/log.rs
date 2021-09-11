@@ -1,6 +1,10 @@
-use hudsucker::{rustls::internal::pemfile, *};
+use hudsucker::{
+    hyper::{Body, Response},
+    rustls::internal::pemfile,
+    *,
+};
 use log::*;
-use std::net::SocketAddr;
+use std::{future::Future, net::SocketAddr, pin::Pin};
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -12,14 +16,18 @@ async fn shutdown_signal() {
 async fn main() {
     env_logger::init();
 
-    let request_handler = |req| {
-        println!("{:?}", req);
-        RequestOrResponse::Request(req)
+    let request_handler = |req| -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>> {
+        Box::pin(async {
+            println!("{:?}", req);
+            RequestOrResponse::Request(req)
+        })
     };
 
-    let response_handler = |res| {
-        println!("{:?}", res);
-        res
+    let response_handler = |res| -> Pin<Box<dyn Future<Output = Response<Body>> + Send>> {
+        Box::pin(async {
+            println!("{:?}", res);
+            res
+        })
     };
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");

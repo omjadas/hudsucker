@@ -18,14 +18,14 @@ use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
 use proxy::Proxy;
 use rustls::ClientConfig;
-use std::{convert::Infallible, future::Future, net::SocketAddr};
+use std::{convert::Infallible, future::Future, net::SocketAddr, pin::Pin};
 use tokio_tungstenite::tungstenite::Message;
 
 pub(crate) use rewind::Rewind;
 
 pub use certificate_authority::CertificateAuthority;
 pub use error::Error;
-pub use http;
+pub use hyper;
 pub use hyper_proxy;
 pub use rustls;
 pub use tokio_tungstenite::tungstenite;
@@ -49,11 +49,19 @@ pub enum RequestOrResponse {
 /// response. If a request is returned, it will be sent to the upstream server. If a response is
 /// returned, it will be sent to the client.
 pub trait RequestHandler:
-    FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static
+    FnMut(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
+    + Send
+    + Sync
+    + Clone
+    + 'static
 {
 }
 impl<T> RequestHandler for T where
-    T: FnMut(Request<Body>) -> RequestOrResponse + Send + Sync + Clone + 'static
+    T: FnMut(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
+        + Send
+        + Sync
+        + Clone
+        + 'static
 {
 }
 
@@ -62,11 +70,19 @@ impl<T> RequestHandler for T where
 /// The handler will be called for each HTTP response. It can modify a response before it is
 /// forwarded to the client.
 pub trait ResponseHandler:
-    FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static
+    FnMut(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
+    + Send
+    + Sync
+    + Clone
+    + 'static
 {
 }
 impl<T> ResponseHandler for T where
-    T: FnMut(Response<Body>) -> Response<Body> + Send + Sync + Clone + 'static
+    T: FnMut(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
+        + Send
+        + Sync
+        + Clone
+        + 'static
 {
 }
 

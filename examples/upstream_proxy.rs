@@ -1,11 +1,12 @@
 use futures::try_join;
 use hudsucker::{
+    hyper::{Body, Response},
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
     *,
 };
 use log::*;
-use std::net::SocketAddr;
+use std::{future::Future, net::SocketAddr, pin::Pin};
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -17,14 +18,18 @@ async fn shutdown_signal() {
 async fn main() {
     env_logger::init();
 
-    let request_handler = |req| {
-        println!("{:?}", req);
-        RequestOrResponse::Request(req)
+    let request_handler = |req| -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>> {
+        Box::pin(async {
+            println!("{:?}", req);
+            RequestOrResponse::Request(req)
+        })
     };
 
-    let response_handler = |res| {
-        println!("{:?}", res);
-        res
+    let response_handler = |res| -> Pin<Box<dyn Future<Output = Response<Body>> + Send>> {
+        Box::pin(async {
+            println!("{:?}", res);
+            res
+        })
     };
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
@@ -50,10 +55,17 @@ async fn main() {
         ca: ca.clone(),
     };
 
+    let request_handler = |req| -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>> {
+        Box::pin(async { RequestOrResponse::Request(req) })
+    };
+
+    let response_handler =
+        |res| -> Pin<Box<dyn Future<Output = Response<Body>> + Send>> { Box::pin(async { res }) };
+
     let proxy_config_2 = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        request_handler: |req| RequestOrResponse::Request(req),
-        response_handler: |res| res,
+        request_handler: request_handler,
+        response_handler: response_handler,
         incoming_message_handler: |msg| Some(msg),
         outgoing_message_handler: |msg| Some(msg),
         shutdown_signal: shutdown_signal(),

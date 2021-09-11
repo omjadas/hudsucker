@@ -45,7 +45,7 @@ where
     }
 
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let req = match (self.request_handler)(req) {
+        let req = match (self.request_handler)(req).await {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
@@ -94,7 +94,7 @@ where
             MaybeProxyClient::Https(client) => client.request(req).await?,
         };
 
-        Ok((self.response_handler)(res))
+        Ok((self.response_handler)(res).await)
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
