@@ -1,17 +1,18 @@
 use crate::{
-    CertificateAuthority, MaybeProxyClient, MessageHandler, RequestOrResponse,
-    RequestResponseHandler, Rewind,
+    CertificateAuthority, HttpContext, MaybeProxyClient, MessageContext, MessageHandler,
+    RequestOrResponse, RequestResponseHandler, Rewind,
 };
-use futures::{sink::SinkExt, stream::StreamExt};
+use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::PathAndQuery;
 use hyper::{
     server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Method, Request, Response,
+    Uri,
 };
 use log::*;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
-use tokio_tungstenite::{connect_async, tungstenite, WebSocketStream};
+use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
 
 #[derive(Clone)]
 pub(crate) struct Proxy<R, M1, M2>
@@ -25,6 +26,7 @@ where
     pub request_response_handler: R,
     pub incoming_message_handler: M1,
     pub outgoing_message_handler: M2,
+    pub client_addr: SocketAddr,
 }
 
 impl<R, M1, M2> Proxy<R, M1, M2>
@@ -42,7 +44,15 @@ where
     }
 
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let req = match self.request_response_handler.handle_request(req).await {
+        let ctx = HttpContext {
+            client_addr: self.client_addr,
+        };
+
+        let req = match self
+            .request_response_handler
+            .handle_request(&ctx, req)
+            .await
+        {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
@@ -80,7 +90,7 @@ where
                 let server_socket = websocket.await.unwrap_or_else(|_| {
                     panic!("Failed to upgrade websocket connection for {}", uri)
                 });
-                self.handle_websocket(server_socket, &uri).await;
+                self.handle_websocket(server_socket, uri).await;
             });
 
             return Ok(res);
@@ -91,7 +101,10 @@ where
             MaybeProxyClient::Https(client) => client.request(req).await?,
         };
 
-        Ok(self.request_response_handler.handle_response(res).await)
+        Ok(self
+            .request_response_handler
+            .handle_response(&ctx, res)
+            .await)
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
@@ -140,59 +153,35 @@ where
         Ok(Response::new(Body::empty()))
     }
 
-    async fn handle_websocket(self, server_socket: WebSocketStream<Upgraded>, uri: &http::Uri) {
-        let (client_socket, _) = connect_async(uri)
+    async fn handle_websocket(self, server_socket: WebSocketStream<Upgraded>, uri: Uri) {
+        let (client_socket, _) = connect_async(&uri)
             .await
             .unwrap_or_else(|_| panic!("Failed to open websocket connection to {}", uri));
 
-        let (mut server_sink, mut server_stream) = server_socket.split();
-        let (mut client_sink, mut client_stream) = client_socket.split();
+        let (server_sink, server_stream) = server_socket.split();
+        let (client_sink, client_stream) = client_socket.split();
 
         let Proxy {
-            mut incoming_message_handler,
-            mut outgoing_message_handler,
+            incoming_message_handler,
+            outgoing_message_handler,
             ..
         } = self;
 
-        tokio::spawn(async move {
-            while let Some(message) = server_stream.next().await {
-                match message {
-                    Ok(message) => {
-                        let message = match incoming_message_handler.handle_message(message).await {
-                            Some(message) => message,
-                            None => continue,
-                        };
+        spawn_message_forwarder(
+            server_stream,
+            client_sink,
+            incoming_message_handler,
+            self.client_addr,
+            uri.clone(),
+        );
 
-                        match client_sink.send(message).await {
-                            Err(tungstenite::Error::ConnectionClosed) => (),
-                            Err(e) => error!("websocket send error: {}", e),
-                            _ => (),
-                        }
-                    }
-                    Err(e) => error!("websocket message error: {}", e),
-                }
-            }
-        });
-
-        tokio::spawn(async move {
-            while let Some(message) = client_stream.next().await {
-                match message {
-                    Ok(message) => {
-                        let message = match outgoing_message_handler.handle_message(message).await {
-                            Some(message) => message,
-                            None => continue,
-                        };
-
-                        match server_sink.send(message).await {
-                            Err(tungstenite::Error::ConnectionClosed) => (),
-                            Err(e) => error!("websocket send error: {}", e),
-                            _ => (),
-                        }
-                    }
-                    Err(e) => error!("websocket message error: {}", e),
-                }
-            }
-        });
+        spawn_message_forwarder(
+            client_stream,
+            server_sink,
+            outgoing_message_handler,
+            self.client_addr,
+            uri,
+        );
     }
 
     async fn serve_websocket(self, stream: Rewind<Upgraded>) -> Result<(), hyper::Error> {
@@ -265,4 +254,37 @@ where
             .with_upgrades()
             .await
     }
+}
+
+fn spawn_message_forwarder(
+    mut stream: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin + Send + 'static,
+    mut sink: impl Sink<Message, Error = tungstenite::Error> + Unpin + Send + 'static,
+    mut handler: impl MessageHandler,
+    client_addr: SocketAddr,
+    uri: Uri,
+) {
+    let ctx = MessageContext {
+        client_addr,
+        server_uri: uri,
+    };
+
+    tokio::spawn(async move {
+        while let Some(message) = stream.next().await {
+            match message {
+                Ok(message) => {
+                    let message = match handler.handle_message(&ctx, message).await {
+                        Some(message) => message,
+                        None => continue,
+                    };
+
+                    match sink.send(message).await {
+                        Err(tungstenite::Error::ConnectionClosed) => (),
+                        Err(e) => error!("websocket send error: {}", e),
+                        _ => (),
+                    }
+                }
+                Err(e) => error!("websocket message error: {}", e),
+            }
+        }
+    });
 }

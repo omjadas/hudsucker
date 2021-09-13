@@ -11,8 +11,9 @@ mod rewind;
 
 use hyper::{
     client::HttpConnector,
+    server::conn::AddrStream,
     service::{make_service_fn, service_fn},
-    Body, Client, Request, Response, Server,
+    Body, Client, Request, Response, Server, Uri,
 };
 use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
@@ -44,6 +45,22 @@ pub enum RequestOrResponse {
     Response(Response<Body>),
 }
 
+/// Context for HTTP requests and responses.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct HttpContext {
+    /// Address of the client that is sending the request.
+    pub client_addr: SocketAddr,
+}
+
+/// Context for websocket messages.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct MessageContext {
+    /// Address of the client.
+    pub client_addr: SocketAddr,
+    /// URI of the server.
+    pub server_uri: Uri,
+}
+
 /// Handler for HTTP requests and responses.
 ///
 /// Each request/response pair is passed to the same instance of the handler.
@@ -52,11 +69,19 @@ pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
     /// The handler will be called for each HTTP request. It can either return a modified request,
     /// or a response. If a request is returned, it will be sent to the upstream server. If a
     /// response is returned, it will be sent to the client.
-    async fn handle_request(&mut self, request: Request<Body>) -> RequestOrResponse;
+    async fn handle_request(
+        &mut self,
+        context: &HttpContext,
+        request: Request<Body>,
+    ) -> RequestOrResponse;
 
     /// The handler will be called for each HTTP response. It can modify a response before it is
     /// forwarded to the client.
-    async fn handle_response(&mut self, request: Response<Body>) -> Response<Body>;
+    async fn handle_response(
+        &mut self,
+        context: &HttpContext,
+        response: Response<Body>,
+    ) -> Response<Body>;
 }
 
 /// Handler for websocket messages.
@@ -66,7 +91,11 @@ pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
 pub trait MessageHandler: Send + Sync + Clone + 'static {
     /// The handler will be called for each websocket message. It can return an optional modified
     /// message. If None is returned the message will not be forwarded.
-    async fn handle_message(&mut self, message: Message) -> Option<Message>;
+    async fn handle_message(
+        &mut self,
+        context: &MessageContext,
+        message: Message,
+    ) -> Option<Message>;
 }
 
 /// Configuration for the proxy server.
@@ -117,12 +146,13 @@ where
 {
     let client = gen_client(upstream_proxy);
 
-    let make_service = make_service_fn(move |_| {
+    let make_service = make_service_fn(move |conn: &AddrStream| {
         let client = client.clone();
         let ca = ca.clone();
         let request_response_handler = request_response_handler.clone();
         let incoming_message_handler = incoming_message_handler.clone();
         let outgoing_message_handler = outgoing_message_handler.clone();
+        let client_addr = conn.remote_addr();
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
                 Proxy {
@@ -131,6 +161,7 @@ where
                     request_response_handler: request_response_handler.clone(),
                     incoming_message_handler: incoming_message_handler.clone(),
                     outgoing_message_handler: outgoing_message_handler.clone(),
+                    client_addr,
                 }
                 .proxy(req)
             }))

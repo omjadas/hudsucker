@@ -19,11 +19,15 @@ struct NoopHandler {}
 
 #[async_trait]
 impl RequestResponseHandler for NoopHandler {
-    async fn handle_request(&mut self, req: Request<Body>) -> RequestOrResponse {
+    async fn handle_request(
+        &mut self,
+        _ctx: &HttpContext,
+        req: Request<Body>,
+    ) -> RequestOrResponse {
         RequestOrResponse::Request(req)
     }
 
-    async fn handle_response(&mut self, res: Response<Body>) -> Response<Body> {
+    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         res
     }
 }
@@ -33,7 +37,7 @@ struct NoopMessageHandler {}
 
 #[async_trait]
 impl MessageHandler for NoopMessageHandler {
-    async fn handle_message(&mut self, msg: Message) -> Option<Message> {
+    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
         Some(msg)
     }
 }
