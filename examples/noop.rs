@@ -1,10 +1,11 @@
 use hudsucker::{
-    hyper::{Body, Response},
+    async_trait::async_trait,
+    hyper::{Body, Request, Response},
     rustls::internal::pemfile,
     *,
 };
 use log::*;
-use std::{future::Future, net::SocketAddr, pin::Pin};
+use std::net::SocketAddr;
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -12,17 +13,23 @@ async fn shutdown_signal() {
         .expect("failed to install CTRL+C signal handler");
 }
 
+#[derive(Clone)]
+struct NoopHandler {}
+
+#[async_trait]
+impl RequestResponseHandler for NoopHandler {
+    async fn handle_request(&mut self, req: Request<Body>) -> RequestOrResponse {
+        RequestOrResponse::Request(req)
+    }
+
+    async fn handle_response(&mut self, res: Response<Body>) -> Response<Body> {
+        res
+    }
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
-
-    let request_handler = |req| -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>> {
-        Box::pin(async { RequestOrResponse::Request(req) })
-    };
-    let response_handler =
-        |res| -> Pin<Box<dyn Future<Output = Response<Body>> + Send>> { Box::pin(async { res }) };
-    let incoming_message_handler = |msg| Some(msg);
-    let outgoing_message_handler = |msg| Some(msg);
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
     let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");
@@ -39,10 +46,9 @@ async fn main() {
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
-        request_handler,
-        response_handler,
-        incoming_message_handler,
-        outgoing_message_handler,
+        request_response_handler: NoopHandler {},
+        incoming_message_handler: |msg| Some(msg),
+        outgoing_message_handler: |msg| Some(msg),
         upstream_proxy: None,
         ca,
     };

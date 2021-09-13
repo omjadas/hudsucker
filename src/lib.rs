@@ -18,11 +18,12 @@ use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
 use proxy::Proxy;
 use rustls::ClientConfig;
-use std::{convert::Infallible, future::Future, net::SocketAddr, pin::Pin};
+use std::{convert::Infallible, future::Future, net::SocketAddr};
 use tokio_tungstenite::tungstenite::Message;
 
 pub(crate) use rewind::Rewind;
 
+pub use async_trait;
 pub use certificate_authority::CertificateAuthority;
 pub use error::Error;
 pub use hyper;
@@ -43,47 +44,19 @@ pub enum RequestOrResponse {
     Response(Response<Body>),
 }
 
-/// Handler for HTTP requests.
+/// Handler for HTTP requests and responses.
 ///
-/// The handler will be called for each HTTP request. It can either return a modified request, or a
-/// response. If a request is returned, it will be sent to the upstream server. If a response is
-/// returned, it will be sent to the client.
-pub trait RequestHandler:
-    FnOnce(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
-    + Send
-    + Sync
-    + Clone
-    + 'static
-{
-}
-impl<T> RequestHandler for T where
-    T: FnOnce(Request<Body>) -> Pin<Box<dyn Future<Output = RequestOrResponse> + Send>>
-        + Send
-        + Sync
-        + Clone
-        + 'static
-{
-}
+/// Each request/response pair is passed to the same instance of the handler.
+#[async_trait::async_trait]
+pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
+    /// The handler will be called for each HTTP request. It can either return a modified request,
+    /// or a response. If a request is returned, it will be sent to the upstream server. If a
+    /// response is returned, it will be sent to the client.
+    async fn handle_request(&mut self, request: Request<Body>) -> RequestOrResponse;
 
-/// Handler for HTTP responses.
-///
-/// The handler will be called for each HTTP response. It can modify a response before it is
-/// forwarded to the client.
-pub trait ResponseHandler:
-    FnOnce(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
-    + Send
-    + Sync
-    + Clone
-    + 'static
-{
-}
-impl<T> ResponseHandler for T where
-    T: FnOnce(Response<Body>) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>
-        + Send
-        + Sync
-        + Clone
-        + 'static
-{
+    /// The handler will be called for each HTTP response. It can modify a response before it is
+    /// forwarded to the client.
+    async fn handle_response(&mut self, request: Response<Body>) -> Response<Body>;
 }
 
 /// Handler for websocket messages.
@@ -103,10 +76,9 @@ impl<T> MessageHandler for T where
 ///
 /// The proxy server can be configured with a number of options.
 #[derive(Clone)]
-pub struct ProxyConfig<F: Future<Output = ()>, R1, R2, W1, W2>
+pub struct ProxyConfig<F: Future<Output = ()>, R, W1, W2>
 where
-    R1: RequestHandler,
-    R2: ResponseHandler,
+    R: RequestResponseHandler,
     W1: MessageHandler,
     W2: MessageHandler,
 {
@@ -116,10 +88,8 @@ where
     pub shutdown_signal: F,
     /// The certificate authority to use.
     pub ca: CertificateAuthority,
-    /// A handler for HTTP requests.
-    pub request_handler: R1,
-    /// A handler for HTTP responses.
-    pub response_handler: R2,
+    /// A handler for HTTP requests and responses.
+    pub request_response_handler: R,
     /// A handler for websocket messages sent from the client to the upstream server.
     pub incoming_message_handler: W1,
     /// A handler for websocket messages sent from the upstream server to the client.
@@ -131,22 +101,20 @@ where
 /// Attempts to start a proxy server using the provided configuration options.
 ///
 /// This will fail if the proxy server is unable to be started.
-pub async fn start_proxy<F, R1, R2, W1, W2>(
+pub async fn start_proxy<F, R, W1, W2>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
         ca,
-        request_handler,
-        response_handler,
+        request_response_handler,
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
-    }: ProxyConfig<F, R1, R2, W1, W2>,
+    }: ProxyConfig<F, R, W1, W2>,
 ) -> Result<(), Error>
 where
     F: Future<Output = ()>,
-    R1: RequestHandler,
-    R2: ResponseHandler,
+    R: RequestResponseHandler,
     W1: MessageHandler,
     W2: MessageHandler,
 {
@@ -155,8 +123,7 @@ where
     let make_service = make_service_fn(move |_| {
         let client = client.clone();
         let ca = ca.clone();
-        let request_handler = request_handler.clone();
-        let response_handler = response_handler.clone();
+        let request_response_handler = request_response_handler.clone();
         let incoming_message_handler = incoming_message_handler.clone();
         let outgoing_message_handler = outgoing_message_handler.clone();
         async move {
@@ -164,8 +131,7 @@ where
                 Proxy {
                     ca: ca.clone(),
                     client: client.clone(),
-                    request_handler: Some(request_handler.clone()),
-                    response_handler: response_handler.clone(),
+                    request_response_handler: request_response_handler.clone(),
                     incoming_message_handler: incoming_message_handler.clone(),
                     outgoing_message_handler: outgoing_message_handler.clone(),
                 }

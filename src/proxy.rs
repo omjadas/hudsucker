@@ -1,6 +1,6 @@
 use crate::{
-    CertificateAuthority, MaybeProxyClient, MessageHandler, RequestHandler, RequestOrResponse,
-    ResponseHandler, Rewind,
+    CertificateAuthority, MaybeProxyClient, MessageHandler, RequestOrResponse,
+    RequestResponseHandler, Rewind,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use http::uri::PathAndQuery;
@@ -14,25 +14,22 @@ use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite, WebSocketStream};
 
 #[derive(Clone)]
-pub(crate) struct Proxy<R1, R2, W1, W2>
+pub(crate) struct Proxy<R, W1, W2>
 where
-    R1: RequestHandler,
-    R2: ResponseHandler,
+    R: RequestResponseHandler,
     W1: MessageHandler,
     W2: MessageHandler,
 {
     pub ca: CertificateAuthority,
     pub client: MaybeProxyClient,
-    pub request_handler: Option<R1>,
-    pub response_handler: R2,
+    pub request_response_handler: R,
     pub incoming_message_handler: W1,
     pub outgoing_message_handler: W2,
 }
 
-impl<R1, R2, W1, W2> Proxy<R1, R2, W1, W2>
+impl<R, W1, W2> Proxy<R, W1, W2>
 where
-    R1: RequestHandler,
-    R2: ResponseHandler,
+    R: RequestResponseHandler,
     W1: MessageHandler,
     W2: MessageHandler,
 {
@@ -45,12 +42,7 @@ where
     }
 
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let req = match (self
-            .request_handler
-            .take()
-            .expect("Request handler is None"))(req)
-        .await
-        {
+        let req = match self.request_response_handler.handle_request(req).await {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
@@ -99,7 +91,7 @@ where
             MaybeProxyClient::Https(client) => client.request(req).await?,
         };
 
-        Ok((self.response_handler)(res).await)
+        Ok(self.request_response_handler.handle_response(res).await)
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
