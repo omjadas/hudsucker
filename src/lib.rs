@@ -65,7 +65,7 @@ pub struct MessageContext {
 ///
 /// Each request/response pair is passed to the same instance of the handler.
 #[async_trait::async_trait]
-pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
+pub trait HttpHandler: Clone + Send + Sync + 'static {
     /// The handler will be called for each HTTP request. It can either return a modified request,
     /// or a response. If a request is returned, it will be sent to the upstream server. If a
     /// response is returned, it will be sent to the client.
@@ -88,7 +88,7 @@ pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
 ///
 /// Messages sent over the same websocket stream are passed to the same instance of the handler.
 #[async_trait::async_trait]
-pub trait MessageHandler: Send + Sync + Clone + 'static {
+pub trait MessageHandler: Clone + Send + Sync + 'static {
     /// The handler will be called for each websocket message. It can return an optional modified
     /// message. If None is returned the message will not be forwarded.
     async fn handle_message(
@@ -102,9 +102,9 @@ pub trait MessageHandler: Send + Sync + Clone + 'static {
 ///
 /// The proxy server can be configured with a number of options.
 #[derive(Clone)]
-pub struct ProxyConfig<F: Future<Output = ()>, R, M1, M2>
+pub struct ProxyConfig<F: Future<Output = ()>, H, M1, M2>
 where
-    R: RequestResponseHandler,
+    H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
 {
@@ -115,7 +115,7 @@ where
     /// The certificate authority to use.
     pub ca: CertificateAuthority,
     /// A handler for HTTP requests and responses.
-    pub request_response_handler: R,
+    pub http_handler: H,
     /// A handler for websocket messages sent from the client to the upstream server.
     pub incoming_message_handler: M1,
     /// A handler for websocket messages sent from the upstream server to the client.
@@ -127,20 +127,20 @@ where
 /// Attempts to start a proxy server using the provided configuration options.
 ///
 /// This will fail if the proxy server is unable to be started.
-pub async fn start_proxy<F, R, M1, M2>(
+pub async fn start_proxy<F, H, M1, M2>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
         ca,
-        request_response_handler,
+        http_handler,
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
-    }: ProxyConfig<F, R, M1, M2>,
+    }: ProxyConfig<F, H, M1, M2>,
 ) -> Result<(), Error>
 where
     F: Future<Output = ()>,
-    R: RequestResponseHandler,
+    H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
 {
@@ -149,7 +149,7 @@ where
     let make_service = make_service_fn(move |conn: &AddrStream| {
         let client = client.clone();
         let ca = ca.clone();
-        let request_response_handler = request_response_handler.clone();
+        let http_handler = http_handler.clone();
         let incoming_message_handler = incoming_message_handler.clone();
         let outgoing_message_handler = outgoing_message_handler.clone();
         let client_addr = conn.remote_addr();
@@ -158,7 +158,7 @@ where
                 Proxy {
                     ca: ca.clone(),
                     client: client.clone(),
-                    request_response_handler: request_response_handler.clone(),
+                    http_handler: http_handler.clone(),
                     incoming_message_handler: incoming_message_handler.clone(),
                     outgoing_message_handler: outgoing_message_handler.clone(),
                     client_addr,

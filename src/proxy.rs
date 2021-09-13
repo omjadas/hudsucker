@@ -1,6 +1,6 @@
 use crate::{
-    CertificateAuthority, HttpContext, MaybeProxyClient, MessageContext, MessageHandler,
-    RequestOrResponse, RequestResponseHandler, Rewind,
+    CertificateAuthority, HttpContext, HttpHandler, MaybeProxyClient, MessageContext,
+    MessageHandler, RequestOrResponse, Rewind,
 };
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::PathAndQuery;
@@ -15,23 +15,23 @@ use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
 
 #[derive(Clone)]
-pub(crate) struct Proxy<R, M1, M2>
+pub(crate) struct Proxy<H, M1, M2>
 where
-    R: RequestResponseHandler,
+    H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
 {
     pub ca: CertificateAuthority,
     pub client: MaybeProxyClient,
-    pub request_response_handler: R,
+    pub http_handler: H,
     pub incoming_message_handler: M1,
     pub outgoing_message_handler: M2,
     pub client_addr: SocketAddr,
 }
 
-impl<R, M1, M2> Proxy<R, M1, M2>
+impl<H, M1, M2> Proxy<H, M1, M2>
 where
-    R: RequestResponseHandler,
+    H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
 {
@@ -48,11 +48,7 @@ where
             client_addr: self.client_addr,
         };
 
-        let req = match self
-            .request_response_handler
-            .handle_request(&ctx, req)
-            .await
-        {
+        let req = match self.http_handler.handle_request(&ctx, req).await {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
@@ -101,10 +97,7 @@ where
             MaybeProxyClient::Https(client) => client.request(req).await?,
         };
 
-        Ok(self
-            .request_response_handler
-            .handle_response(&ctx, res)
-            .await)
+        Ok(self.http_handler.handle_response(&ctx, res).await)
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {

@@ -18,7 +18,7 @@ async fn shutdown_signal() {
 struct NoopHandler {}
 
 #[async_trait]
-impl RequestResponseHandler for NoopHandler {
+impl HttpHandler for NoopHandler {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
@@ -61,7 +61,7 @@ async fn main() {
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
-        request_response_handler: NoopHandler {},
+        http_handler: NoopHandler {},
         incoming_message_handler: NoopMessageHandler {},
         outgoing_message_handler: NoopMessageHandler {},
         upstream_proxy: None,

@@ -18,7 +18,7 @@ async fn shutdown_signal() {
 struct LogHandler {}
 
 #[async_trait]
-impl RequestResponseHandler for LogHandler {
+impl HttpHandler for LogHandler {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
@@ -63,7 +63,7 @@ async fn main() {
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
-        request_response_handler: LogHandler {},
+        http_handler: LogHandler {},
         incoming_message_handler: NoopMessageHandler {},
         outgoing_message_handler: NoopMessageHandler {},
         upstream_proxy: None,
