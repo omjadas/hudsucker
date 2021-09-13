@@ -14,24 +14,24 @@ use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite, WebSocketStream};
 
 #[derive(Clone)]
-pub(crate) struct Proxy<R, W1, W2>
+pub(crate) struct Proxy<R, M1, M2>
 where
     R: RequestResponseHandler,
-    W1: MessageHandler,
-    W2: MessageHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
     pub ca: CertificateAuthority,
     pub client: MaybeProxyClient,
     pub request_response_handler: R,
-    pub incoming_message_handler: W1,
-    pub outgoing_message_handler: W2,
+    pub incoming_message_handler: M1,
+    pub outgoing_message_handler: M2,
 }
 
-impl<R, W1, W2> Proxy<R, W1, W2>
+impl<R, M1, M2> Proxy<R, M1, M2>
 where
     R: RequestResponseHandler,
-    W1: MessageHandler,
-    W2: MessageHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {
@@ -158,7 +158,7 @@ where
             while let Some(message) = server_stream.next().await {
                 match message {
                     Ok(message) => {
-                        let message = match incoming_message_handler(message) {
+                        let message = match incoming_message_handler.handle_message(message).await {
                             Some(message) => message,
                             None => continue,
                         };
@@ -178,7 +178,7 @@ where
             while let Some(message) = client_stream.next().await {
                 match message {
                     Ok(message) => {
-                        let message = match outgoing_message_handler(message) {
+                        let message = match outgoing_message_handler.handle_message(message).await {
                             Some(message) => message,
                             None => continue,
                         };

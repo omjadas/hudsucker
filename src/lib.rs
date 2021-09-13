@@ -61,26 +61,23 @@ pub trait RequestResponseHandler: Send + Sync + Clone + 'static {
 
 /// Handler for websocket messages.
 ///
-/// The handler will be called for each websocket message. It can return an optional modified
-/// message. If None is returned the message will not be forwarded.
-pub trait MessageHandler:
-    FnMut(Message) -> Option<Message> + Send + Sync + Clone + 'static
-{
-}
-impl<T> MessageHandler for T where
-    T: FnMut(Message) -> Option<Message> + Send + Sync + Clone + 'static
-{
+/// Messages sent over the same websocket stream are passed to the same instance of the handler.
+#[async_trait::async_trait]
+pub trait MessageHandler: Send + Sync + Clone + 'static {
+    /// The handler will be called for each websocket message. It can return an optional modified
+    /// message. If None is returned the message will not be forwarded.
+    async fn handle_message(&mut self, message: Message) -> Option<Message>;
 }
 
 /// Configuration for the proxy server.
 ///
 /// The proxy server can be configured with a number of options.
 #[derive(Clone)]
-pub struct ProxyConfig<F: Future<Output = ()>, R, W1, W2>
+pub struct ProxyConfig<F: Future<Output = ()>, R, M1, M2>
 where
     R: RequestResponseHandler,
-    W1: MessageHandler,
-    W2: MessageHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
     /// The address to listen on.
     pub listen_addr: SocketAddr,
@@ -91,9 +88,9 @@ where
     /// A handler for HTTP requests and responses.
     pub request_response_handler: R,
     /// A handler for websocket messages sent from the client to the upstream server.
-    pub incoming_message_handler: W1,
+    pub incoming_message_handler: M1,
     /// A handler for websocket messages sent from the upstream server to the client.
-    pub outgoing_message_handler: W2,
+    pub outgoing_message_handler: M2,
     /// The upstream proxy to use.
     pub upstream_proxy: Option<UpstreamProxy>,
 }
@@ -101,7 +98,7 @@ where
 /// Attempts to start a proxy server using the provided configuration options.
 ///
 /// This will fail if the proxy server is unable to be started.
-pub async fn start_proxy<F, R, W1, W2>(
+pub async fn start_proxy<F, R, M1, M2>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
@@ -110,13 +107,13 @@ pub async fn start_proxy<F, R, W1, W2>(
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
-    }: ProxyConfig<F, R, W1, W2>,
+    }: ProxyConfig<F, R, M1, M2>,
 ) -> Result<(), Error>
 where
     F: Future<Output = ()>,
     R: RequestResponseHandler,
-    W1: MessageHandler,
-    W2: MessageHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
     let client = gen_client(upstream_proxy);
 

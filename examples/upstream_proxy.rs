@@ -4,6 +4,7 @@ use hudsucker::{
     hyper::{Body, Request, Response},
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
+    tungstenite::Message,
     *,
 };
 use log::*;
@@ -45,6 +46,16 @@ impl RequestResponseHandler for NoopHandler {
     }
 }
 
+#[derive(Clone)]
+struct NoopMessageHandler {}
+
+#[async_trait]
+impl MessageHandler for NoopMessageHandler {
+    async fn handle_message(&mut self, msg: Message) -> Option<Message> {
+        Some(msg)
+    }
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -65,8 +76,8 @@ async fn main() {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
         shutdown_signal: shutdown_signal(),
         request_response_handler: LogHandler {},
-        incoming_message_handler: |msg| Some(msg),
-        outgoing_message_handler: |msg| Some(msg),
+        incoming_message_handler: NoopMessageHandler {},
+        outgoing_message_handler: NoopMessageHandler {},
         upstream_proxy: None,
         ca: ca.clone(),
     };
@@ -74,8 +85,8 @@ async fn main() {
     let proxy_config_2 = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         request_response_handler: NoopHandler {},
-        incoming_message_handler: |msg| Some(msg),
-        outgoing_message_handler: |msg| Some(msg),
+        incoming_message_handler: NoopMessageHandler {},
+        outgoing_message_handler: NoopMessageHandler {},
         shutdown_signal: shutdown_signal(),
         upstream_proxy: Some(UpstreamProxy::new(
             Intercept::All,
