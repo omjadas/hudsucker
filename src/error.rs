@@ -7,6 +7,8 @@ pub enum Error {
     Tls(#[from] RcgenError),
     #[error("network error")]
     Network(#[from] hyper::Error),
+    #[error("unable to decode response body")]
+    Decode,
     #[error("unknown error")]
     Unknown,
 }

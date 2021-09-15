@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
-        .expect("failed to install CTRL+C signal handler");
+        .expect("Failed to install CTRL+C signal handler");
 }
 
 #[derive(Clone)]
