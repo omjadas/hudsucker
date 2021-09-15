@@ -21,9 +21,7 @@ impl<T: Stream<Item = Result<Bytes, HyperError>> + Unpin> Stream for IoStream<T>
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         match futures::ready!(Pin::new(&mut self.0).poll_next(cx)) {
             Some(Ok(chunk)) => Poll::Ready(Some(Ok(chunk))),
-            Some(Err(err)) => {
-                Poll::Ready(Some(Err(IoError::new(io::ErrorKind::Other, err))))
-            }
+            Some(Err(err)) => Poll::Ready(Some(Err(IoError::new(io::ErrorKind::Other, err)))),
             None => Poll::Ready(None),
         }
     }
