@@ -7,6 +7,7 @@
 mod certificate_authority;
 mod decoder;
 mod error;
+mod noop;
 mod proxy;
 mod rewind;
 
@@ -31,6 +32,7 @@ pub use decoder::decode_response;
 pub use error::Error;
 pub use hyper;
 pub use hyper_proxy;
+pub use noop::*;
 pub use rustls;
 pub use tokio_tungstenite::tungstenite;
 

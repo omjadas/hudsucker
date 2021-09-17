@@ -2,7 +2,6 @@ use hudsucker::{
     async_trait::async_trait,
     hyper::{Body, Request, Response},
     rustls::internal::pemfile,
-    tungstenite::Message,
     *,
 };
 use log::*;
@@ -34,16 +33,6 @@ impl HttpHandler for LogHandler {
     }
 }
 
-#[derive(Clone)]
-struct NoopMessageHandler {}
-
-#[async_trait]
-impl MessageHandler for NoopMessageHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
-        Some(msg)
-    }
-}
-
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -64,8 +53,8 @@ async fn main() {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
         http_handler: LogHandler {},
-        incoming_message_handler: NoopMessageHandler {},
-        outgoing_message_handler: NoopMessageHandler {},
+        incoming_message_handler: NoopMessageHandler::new(),
+        outgoing_message_handler: NoopMessageHandler::new(),
         upstream_proxy: None,
         ca,
     };

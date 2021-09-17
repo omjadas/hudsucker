@@ -1,10 +1,4 @@
-use hudsucker::{
-    async_trait::async_trait,
-    hyper::{Body, Request, Response},
-    rustls::internal::pemfile,
-    tungstenite::Message,
-    *,
-};
+use hudsucker::{rustls::internal::pemfile, *};
 use log::*;
 use std::net::SocketAddr;
 
@@ -12,34 +6,6 @@ async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("Failed to install CTRL+C signal handler");
-}
-
-#[derive(Clone)]
-struct NoopHandler {}
-
-#[async_trait]
-impl HttpHandler for NoopHandler {
-    async fn handle_request(
-        &mut self,
-        _ctx: &HttpContext,
-        req: Request<Body>,
-    ) -> RequestOrResponse {
-        RequestOrResponse::Request(req)
-    }
-
-    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-        res
-    }
-}
-
-#[derive(Clone)]
-struct NoopMessageHandler {}
-
-#[async_trait]
-impl MessageHandler for NoopMessageHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
-        Some(msg)
-    }
 }
 
 #[tokio::main]
@@ -61,9 +27,9 @@ async fn main() {
     let proxy_config = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
         shutdown_signal: shutdown_signal(),
-        http_handler: NoopHandler {},
-        incoming_message_handler: NoopMessageHandler {},
-        outgoing_message_handler: NoopMessageHandler {},
+        http_handler: NoopHttpHandler::new(),
+        incoming_message_handler: NoopMessageHandler::new(),
+        outgoing_message_handler: NoopMessageHandler::new(),
         upstream_proxy: None,
         ca,
     };

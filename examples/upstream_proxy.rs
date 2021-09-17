@@ -4,7 +4,6 @@ use hudsucker::{
     hyper::{Body, Request, Response},
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
-    tungstenite::Message,
     *,
 };
 use log::*;
@@ -36,34 +35,6 @@ impl HttpHandler for LogHandler {
     }
 }
 
-#[derive(Clone)]
-struct NoopHandler {}
-
-#[async_trait]
-impl HttpHandler for NoopHandler {
-    async fn handle_request(
-        &mut self,
-        _ctx: &HttpContext,
-        req: Request<Body>,
-    ) -> RequestOrResponse {
-        RequestOrResponse::Request(req)
-    }
-
-    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-        res
-    }
-}
-
-#[derive(Clone)]
-struct NoopMessageHandler {}
-
-#[async_trait]
-impl MessageHandler for NoopMessageHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
-        Some(msg)
-    }
-}
-
 #[tokio::main]
 async fn main() {
     env_logger::init();
@@ -84,17 +55,17 @@ async fn main() {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
         shutdown_signal: shutdown_signal(),
         http_handler: LogHandler {},
-        incoming_message_handler: NoopMessageHandler {},
-        outgoing_message_handler: NoopMessageHandler {},
+        incoming_message_handler: NoopMessageHandler::new(),
+        outgoing_message_handler: NoopMessageHandler::new(),
         upstream_proxy: None,
         ca: ca.clone(),
     };
 
     let proxy_config_2 = ProxyConfig {
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        http_handler: NoopHandler {},
-        incoming_message_handler: NoopMessageHandler {},
-        outgoing_message_handler: NoopMessageHandler {},
+        http_handler: NoopHttpHandler::new(),
+        incoming_message_handler: NoopMessageHandler::new(),
+        outgoing_message_handler: NoopMessageHandler::new(),
         shutdown_signal: shutdown_signal(),
         upstream_proxy: Some(UpstreamProxy::new(
             Intercept::All,
