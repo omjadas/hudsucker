@@ -4,6 +4,7 @@ use http::uri::Authority;
 use moka::future::Cache;
 use rcgen::{KeyPair, RcgenError, SanType};
 use rustls::{NoClientAuth, ServerConfig};
+use std::sync::Arc;
 
 /// Issues certificates for use when communicating with clients.
 ///
@@ -14,7 +15,7 @@ use rustls::{NoClientAuth, ServerConfig};
 pub struct CertificateAuthority {
     private_key: rustls::PrivateKey,
     ca_cert: rustls::Certificate,
-    cache: Cache<Authority, ServerConfig>,
+    cache: Cache<Authority, Arc<ServerConfig>>,
 }
 
 impl CertificateAuthority {
@@ -37,7 +38,7 @@ impl CertificateAuthority {
         Ok(ca)
     }
 
-    pub(crate) async fn gen_server_config(&self, authority: &Authority) -> ServerConfig {
+    pub(crate) async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
         if let Some(server_cfg) = self.cache.get(authority) {
             return server_cfg;
         }
@@ -50,8 +51,10 @@ impl CertificateAuthority {
             .expect("Failed to set certificate");
         server_cfg.set_protocols(&[b"http/1.1".to_vec()]);
 
+        let server_cfg = Arc::new(server_cfg);
+
         self.cache
-            .insert(authority.clone(), server_cfg.clone())
+            .insert(authority.clone(), Arc::clone(&server_cfg))
             .await;
 
         server_cfg

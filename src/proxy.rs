@@ -9,7 +9,7 @@ use hyper::{
     Uri,
 };
 use log::*;
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
@@ -106,7 +106,7 @@ where
                 .uri()
                 .authority()
                 .expect("URI does not contain authority");
-            let server_config = Arc::new(self.ca.gen_server_config(authority).await);
+            let server_config = self.ca.gen_server_config(authority).await;
 
             match hyper::upgrade::on(req).await {
                 Ok(mut upgraded) => {
