@@ -25,7 +25,7 @@ hyper-proxy = { version = "0.9", default-features = false, features = ["rustls-w
 hyper-rustls = "0.22"
 hyper-tungstenite = "0.4"
 log = "0.4"
-moka = { version = "0.5", features = ["future"] }
+moka = { version = "0.6", features = ["future"] }
 rcgen = { version = "0.8", features = ["x509-parser"] }
 rustls = "0.19"
 thiserror = "1"
