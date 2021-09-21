@@ -9,7 +9,7 @@ use hyper::{
     Uri,
 };
 use log::*;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
@@ -21,7 +21,7 @@ where
     M1: MessageHandler,
     M2: MessageHandler,
 {
-    pub ca: CertificateAuthority,
+    pub ca: Arc<CertificateAuthority>,
     pub client: MaybeProxyClient,
     pub http_handler: H,
     pub incoming_message_handler: M1,
@@ -242,6 +242,7 @@ where
 
             self.clone().process_request(req)
         });
+
         Http::new()
             .serve_connection(stream, service)
             .with_upgrades()

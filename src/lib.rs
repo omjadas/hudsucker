@@ -21,7 +21,7 @@ use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
 use hyper_rustls::HttpsConnector;
 use proxy::Proxy;
 use rustls::ClientConfig;
-use std::{convert::Infallible, future::Future, net::SocketAddr};
+use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio_tungstenite::tungstenite::Message;
 
 pub(crate) use rewind::Rewind;
@@ -149,10 +149,11 @@ where
     M2: MessageHandler,
 {
     let client = gen_client(upstream_proxy);
+    let ca = Arc::new(ca);
 
     let make_service = make_service_fn(move |conn: &AddrStream| {
         let client = client.clone();
-        let ca = ca.clone();
+        let ca = Arc::clone(&ca);
         let http_handler = http_handler.clone();
         let incoming_message_handler = incoming_message_handler.clone();
         let outgoing_message_handler = outgoing_message_handler.clone();
@@ -160,7 +161,7 @@ where
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
                 Proxy {
-                    ca: ca.clone(),
+                    ca: Arc::clone(&ca),
                     client: client.clone(),
                     http_handler: http_handler.clone(),
                     incoming_message_handler: incoming_message_handler.clone(),
