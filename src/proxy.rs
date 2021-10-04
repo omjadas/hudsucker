@@ -105,8 +105,8 @@ where
             let authority = req
                 .uri()
                 .authority()
-                .expect("URI does not contain authority");
-            let server_config = self.ca.gen_server_config(authority).await;
+                .expect("URI does not contain authority")
+                .clone();
 
             match hyper::upgrade::on(req).await {
                 Ok(mut upgraded) => {
@@ -123,23 +123,23 @@ where
 
                     if bytes_read == 4 && buffer == *b"GET " {
                         if let Err(e) = self.serve_websocket(upgraded).await {
-                            error!("websocket connect error: {}", e);
+                            error!("websocket connect error for {}: {}", authority, e);
                         }
                     } else {
+                        let server_config = self.ca.gen_server_config(&authority).await;
                         let stream = TlsAcceptor::from(server_config)
                             .accept(upgraded)
                             .await
                             .expect("Failed to establish TLS connection with client");
 
                         if let Err(e) = self.serve_https(stream).await {
-                            let e_string = e.to_string();
-                            if !e_string.starts_with("error shutting down connection") {
-                                error!("https connect error: {}", e);
+                            if !e.to_string().starts_with("error shutting down connection") {
+                                error!("https connect error for {}: {}", authority, e);
                             }
                         }
                     }
                 }
-                Err(e) => error!("upgrade error: {}", e),
+                Err(e) => error!("upgrade error for {}: {}", authority, e),
             };
         });
 
