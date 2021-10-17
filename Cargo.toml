@@ -13,7 +13,7 @@ categories = ["network-programming"]
 exclude = [".github/"]
 
 [dependencies]
-async-compression = { version = "0.3", features = ["tokio", "brotli", "gzip", "zlib"] }
+async-compression = { version = "0.3", features = ["tokio", "brotli", "gzip", "zlib", "zstd"] }
 async-trait = "0.1"
 bytes = "1"
 chrono = "0.4"
