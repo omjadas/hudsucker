@@ -28,7 +28,7 @@ pub(crate) use rewind::Rewind;
 
 pub use async_trait;
 pub use certificate_authority::CertificateAuthority;
-pub use decoder::decode_response;
+pub use decoder::{decode_request, decode_response};
 pub use error::Error;
 pub use hyper;
 pub use hyper_proxy;
