@@ -1,7 +1,12 @@
 // adapted from https://github.com/hyperium/hyper/blob/master/src/common/io/rewind.rs
 
 use bytes::{Buf, Bytes};
-use std::{cmp, io, marker::Unpin, pin::Pin, task, task::Poll};
+use std::{
+    cmp, io,
+    marker::Unpin,
+    pin::Pin,
+    task::{self, Poll},
+};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 /// Combine a buffer with an IO, rewinding reads to use the buffer.

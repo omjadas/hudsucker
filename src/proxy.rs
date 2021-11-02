@@ -12,7 +12,11 @@ use log::*;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::io::AsyncReadExt;
 use tokio_rustls::TlsAcceptor;
-use tokio_tungstenite::{connect_async, tungstenite, tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{self, Message},
+    WebSocketStream,
+};
 
 #[derive(Clone)]
 pub(crate) struct Proxy<H, M1, M2>
