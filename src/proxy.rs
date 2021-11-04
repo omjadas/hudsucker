@@ -18,14 +18,14 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-#[derive(Clone)]
-pub(crate) struct Proxy<H, M1, M2>
+pub(crate) struct Proxy<H, M1, M2, C>
 where
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
+    C: CertificateAuthority,
 {
-    pub ca: Arc<CertificateAuthority>,
+    pub ca: Arc<C>,
     pub client: MaybeProxyClient,
     pub http_handler: H,
     pub incoming_message_handler: M1,
@@ -33,11 +33,31 @@ where
     pub client_addr: SocketAddr,
 }
 
-impl<H, M1, M2> Proxy<H, M1, M2>
+impl<H, M1, M2, C> Clone for Proxy<H, M1, M2, C>
 where
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
+    C: CertificateAuthority,
+{
+    fn clone(&self) -> Self {
+        Proxy {
+            ca: self.ca.clone(),
+            client: self.client.clone(),
+            http_handler: self.http_handler.clone(),
+            incoming_message_handler: self.incoming_message_handler.clone(),
+            outgoing_message_handler: self.outgoing_message_handler.clone(),
+            client_addr: self.client_addr,
+        }
+    }
+}
+
+impl<H, M1, M2, C> Proxy<H, M1, M2, C>
+where
+    H: HttpHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
+    C: CertificateAuthority,
 {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {

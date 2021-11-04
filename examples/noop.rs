@@ -1,4 +1,4 @@
-use hudsucker::{rustls::internal::pemfile, *};
+use hudsucker::{certificate_authority::RcgenAuthority, rustls::internal::pemfile, *};
 use log::*;
 use std::net::SocketAddr;
 
@@ -21,7 +21,7 @@ async fn main() {
         .expect("Failed to parse CA certificate")
         .remove(0);
 
-    let ca = CertificateAuthority::new(private_key, ca_cert, 1_000)
+    let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority");
 
     let proxy_config = ProxyConfig {

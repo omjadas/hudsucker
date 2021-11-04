@@ -4,13 +4,15 @@
 //! - Modify HTTP/S responses
 //! - Modify websocket messages
 
-mod certificate_authority;
 mod decoder;
 mod error;
 mod noop;
 mod proxy;
 mod rewind;
 
+pub mod certificate_authority;
+
+use certificate_authority::CertificateAuthority;
 use hyper::{
     client::HttpConnector,
     server::conn::AddrStream,
@@ -27,7 +29,6 @@ use tokio_tungstenite::tungstenite::Message;
 pub(crate) use rewind::Rewind;
 
 pub use async_trait;
-pub use certificate_authority::CertificateAuthority;
 pub use decoder::{decode_request, decode_response};
 pub use error::Error;
 pub use hyper;
@@ -106,18 +107,19 @@ pub trait MessageHandler: Clone + Send + Sync + 'static {
 ///
 /// The proxy server can be configured with a number of options.
 #[derive(Clone)]
-pub struct ProxyConfig<F: Future<Output = ()>, H, M1, M2>
+pub struct ProxyConfig<F: Future<Output = ()>, H, M1, M2, C>
 where
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
+    C: CertificateAuthority,
 {
     /// The address to listen on.
     pub listen_addr: SocketAddr,
     /// A future that once resolved will cause the proxy server to shut down.
     pub shutdown_signal: F,
     /// The certificate authority to use.
-    pub ca: CertificateAuthority,
+    pub ca: C,
     /// A handler for HTTP requests and responses.
     pub http_handler: H,
     /// A handler for websocket messages sent from the client to the upstream server.
@@ -131,7 +133,7 @@ where
 /// Attempts to start a proxy server using the provided configuration options.
 ///
 /// This will fail if the proxy server is unable to be started.
-pub async fn start_proxy<F, H, M1, M2>(
+pub async fn start_proxy<F, H, M1, M2, C>(
     ProxyConfig {
         listen_addr,
         shutdown_signal,
@@ -140,13 +142,14 @@ pub async fn start_proxy<F, H, M1, M2>(
         incoming_message_handler,
         outgoing_message_handler,
         upstream_proxy,
-    }: ProxyConfig<F, H, M1, M2>,
+    }: ProxyConfig<F, H, M1, M2, C>,
 ) -> Result<(), Error>
 where
     F: Future<Output = ()>,
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
+    C: CertificateAuthority,
 {
     let client = gen_client(upstream_proxy);
     let ca = Arc::new(ca);

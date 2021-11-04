@@ -1,4 +1,6 @@
+use crate::certificate_authority::CertificateAuthority;
 use crate::Error;
+use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use http::uri::Authority;
 use moka::future::Cache;
@@ -12,13 +14,13 @@ use std::sync::Arc;
 /// up to a max size that is provided when creating the authority. Clients should be configured to
 /// either trust the provided root certificate, or to ignore certificate errors.
 #[derive(Clone)]
-pub struct CertificateAuthority {
+pub struct RcgenAuthority {
     private_key: rustls::PrivateKey,
     ca_cert: rustls::Certificate,
     cache: Cache<Authority, Arc<ServerConfig>>,
 }
 
-impl CertificateAuthority {
+impl RcgenAuthority {
     /// Attempts to create a new certificate authority.
     ///
     /// This will fail if the provided key or certificate is invalid, or if the key does not match
@@ -27,8 +29,8 @@ impl CertificateAuthority {
         private_key: rustls::PrivateKey,
         ca_cert: rustls::Certificate,
         cache_size: usize,
-    ) -> Result<CertificateAuthority, Error> {
-        let ca = CertificateAuthority {
+    ) -> Result<RcgenAuthority, Error> {
+        let ca = Self {
             private_key,
             ca_cert,
             cache: Cache::new(cache_size),
@@ -36,28 +38,6 @@ impl CertificateAuthority {
 
         ca.validate()?;
         Ok(ca)
-    }
-
-    pub(crate) async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
-        if let Some(server_cfg) = self.cache.get(authority) {
-            return server_cfg;
-        }
-
-        let mut server_cfg = ServerConfig::new(NoClientAuth::new());
-        let certs = vec![self.gen_cert(authority)];
-
-        server_cfg
-            .set_single_cert(certs, self.private_key.clone())
-            .expect("Failed to set certificate");
-        server_cfg.set_protocols(&[b"http/1.1".to_vec()]);
-
-        let server_cfg = Arc::new(server_cfg);
-
-        self.cache
-            .insert(authority.clone(), Arc::clone(&server_cfg))
-            .await;
-
-        server_cfg
     }
 
     fn gen_cert(&self, authority: &Authority) -> rustls::Certificate {
@@ -94,5 +74,30 @@ impl CertificateAuthority {
         let key_pair = rcgen::KeyPair::from_der(&self.private_key.0)?;
         rcgen::CertificateParams::from_ca_cert_der(&self.ca_cert.0, key_pair)?;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl CertificateAuthority for RcgenAuthority {
+    async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
+        if let Some(server_cfg) = self.cache.get(authority) {
+            return server_cfg;
+        }
+
+        let mut server_cfg = ServerConfig::new(NoClientAuth::new());
+        let certs = vec![self.gen_cert(authority)];
+
+        server_cfg
+            .set_single_cert(certs, self.private_key.clone())
+            .expect("Failed to set certificate");
+        server_cfg.set_protocols(&[b"http/1.1".to_vec()]);
+
+        let server_cfg = Arc::new(server_cfg);
+
+        self.cache
+            .insert(authority.clone(), Arc::clone(&server_cfg))
+            .await;
+
+        server_cfg
     }
 }

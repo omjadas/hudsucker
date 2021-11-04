@@ -1,6 +1,7 @@
 use futures::try_join;
 use hudsucker::{
     async_trait::async_trait,
+    certificate_authority::RcgenAuthority,
     hyper::{Body, Request, Response},
     hyper_proxy::{Intercept, Proxy as UpstreamProxy},
     rustls::internal::pemfile,
@@ -48,7 +49,7 @@ async fn main() {
         .expect("Failed to parse CA certificate")
         .remove(0);
 
-    let ca = CertificateAuthority::new(private_key, ca_cert, 1_000)
+    let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority");
 
     let proxy_config = ProxyConfig {
