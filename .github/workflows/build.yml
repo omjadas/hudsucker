@@ -23,7 +23,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --all-targets
+          args: --release --all-targets --all-features
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:

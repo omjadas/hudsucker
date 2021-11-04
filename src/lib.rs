@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! Hudsucker is a MITM HTTP/S proxy that allows you to:
 //!
 //! - Modify HTTP/S requests
@@ -34,6 +36,8 @@ pub use error::Error;
 pub use hyper;
 pub use hyper_proxy;
 pub use noop::*;
+#[cfg(feature = "openssl")]
+pub use openssl;
 pub use rustls;
 pub use tokio_tungstenite::tungstenite;
 

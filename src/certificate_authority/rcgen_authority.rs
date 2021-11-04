@@ -11,8 +11,8 @@ use std::sync::Arc;
 /// Issues certificates for use when communicating with clients.
 ///
 /// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
-/// up to a max size that is provided when creating the authority. Clients should be configured to
-/// either trust the provided root certificate, or to ignore certificate errors.
+/// up to a max size that is provided when creating the authority. Certificates are generated using
+/// the `rcgen` crate.
 #[derive(Clone)]
 pub struct RcgenAuthority {
     private_key: rustls::PrivateKey,
@@ -21,7 +21,7 @@ pub struct RcgenAuthority {
 }
 
 impl RcgenAuthority {
-    /// Attempts to create a new certificate authority.
+    /// Attempts to create a new rcgen authority.
     ///
     /// This will fail if the provided key or certificate is invalid, or if the key does not match
     /// the certificate.
