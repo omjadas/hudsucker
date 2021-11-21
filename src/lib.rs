@@ -37,7 +37,7 @@ pub use hyper_proxy;
 pub use noop::*;
 #[cfg(feature = "openssl")]
 pub use openssl;
-pub use rustls;
+pub use tokio_rustls::rustls;
 pub use tokio_tungstenite::tungstenite;
 
 #[derive(Clone)]

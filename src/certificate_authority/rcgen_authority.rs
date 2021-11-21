@@ -5,8 +5,8 @@ use chrono::{Duration, Utc};
 use http::uri::Authority;
 use moka::future::Cache;
 use rcgen::{KeyPair, RcgenError, SanType};
-use rustls::ServerConfig;
 use std::sync::Arc;
+use tokio_rustls::rustls::{self, ServerConfig};
 
 /// Issues certificates for use when communicating with clients.
 ///

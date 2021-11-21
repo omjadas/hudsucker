@@ -5,8 +5,8 @@ mod rcgen_authority;
 
 use async_trait::async_trait;
 use http::uri::Authority;
-use rustls::ServerConfig;
 use std::sync::Arc;
+use tokio_rustls::rustls::ServerConfig;
 
 #[cfg(feature = "openssl-certs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "openssl-certs")))]

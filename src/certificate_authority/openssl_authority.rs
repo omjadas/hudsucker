@@ -9,8 +9,8 @@ use openssl::{
     pkey::{PKey, Private},
     x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
 };
-use rustls::ServerConfig;
 use std::sync::Arc;
+use tokio_rustls::rustls::{self, ServerConfig};
 
 /// Issues certificates for use when communicating with clients.
 ///
