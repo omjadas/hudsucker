@@ -21,27 +21,26 @@ async-compression = { version = "0.3", features = ["tokio", "brotli", "gzip", "z
 async-trait = "0.1"
 bytes = "1"
 chrono = "0.4"
-ct-logs = "0.8"
 futures = "0.3"
 http = "0.2"
 hyper = { version = "0.14", features = ["full"] }
 hyper-proxy = { version = "0.9", default-features = false, features = ["rustls-webpki"] }
-hyper-rustls = "0.22"
+hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
 hyper-tungstenite = "0.4"
 log = "0.4"
 moka = { version = "0.6", features = ["future"], optional = true }
 openssl = { version = "0.10", optional = true }
 rcgen = { version = "0.8", features = ["x509-parser"], optional = true }
-rustls = "0.19"
+rustls = "0.20"
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
-tokio-rustls = "0.22"
+tokio-rustls = "0.23"
 tokio-tungstenite = { version = "0.15", features = ["rustls-tls"] }
 tokio-util = { version = "0.6", features = ["io"] }
-webpki-roots = "0.21"
 
 [dev-dependencies]
 env_logger = "0.9"
+rustls-pemfile = "0.2.1"
 
 [features]
 default = ["rcgen-certs"]

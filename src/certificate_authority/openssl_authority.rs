@@ -9,7 +9,7 @@ use openssl::{
     pkey::{PKey, Private},
     x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
 };
-use rustls::{NoClientAuth, ServerConfig};
+use rustls::ServerConfig;
 use std::sync::Arc;
 
 /// Issues certificates for use when communicating with clients.
@@ -74,17 +74,17 @@ impl CertificateAuthority for OpensslAuthority {
             return server_cfg;
         }
 
-        let mut server_cfg = ServerConfig::new(NoClientAuth::new());
         let certs = vec![self
             .gen_cert(authority)
             .unwrap_or_else(|_| panic!("Failed to generate certificate for {}", authority))];
 
-        server_cfg
-            .set_single_cert(certs, self.private_key.clone())
-            .expect("Failed to set certificate");
-        server_cfg.set_protocols(&[b"http/1.1".to_vec()]);
-
-        let server_cfg = Arc::new(server_cfg);
+        let server_cfg = Arc::new(
+            ServerConfig::builder()
+                .with_safe_defaults()
+                .with_no_client_auth()
+                .with_single_cert(certs, self.private_key.clone())
+                .expect("Failed to build ServerConfig"),
+        );
 
         self.cache
             .insert(authority.clone(), Arc::clone(&server_cfg))
