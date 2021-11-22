@@ -182,7 +182,6 @@ where
     Server::bind(&listen_addr)
         .http1_preserve_header_case(true)
         .http1_title_case_headers(true)
-        .http1_only(true)
         .serve(make_service)
         .with_graceful_shutdown(shutdown_signal)
         .await

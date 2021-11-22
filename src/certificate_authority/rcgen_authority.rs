@@ -86,13 +86,15 @@ impl CertificateAuthority for RcgenAuthority {
 
         let certs = vec![self.gen_cert(authority)];
 
-        let server_cfg = Arc::new(
-            ServerConfig::builder()
-                .with_safe_defaults()
-                .with_no_client_auth()
-                .with_single_cert(certs, self.private_key.clone())
-                .expect("Failed to build ServerConfig"),
-        );
+        let mut server_cfg = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(certs, self.private_key.clone())
+            .expect("Failed to build ServerConfig");
+
+        server_cfg.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+        let server_cfg = Arc::new(server_cfg);
 
         self.cache
             .insert(authority.clone(), Arc::clone(&server_cfg))

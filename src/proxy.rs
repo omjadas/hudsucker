@@ -67,16 +67,12 @@ where
         }
     }
 
-    async fn process_request(
-        mut self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>, hyper::Error> {
+    async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let ctx = HttpContext {
             client_addr: self.client_addr,
         };
 
-        let req = h2_to_http11(req);
-
+        let req = normalize_request(req);
         let req = match self.http_handler.handle_request(&ctx, req).await {
             RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
@@ -312,13 +308,11 @@ fn spawn_message_forwarder(
     });
 }
 
-fn h2_to_http11<T>(mut req: Request<T>) -> Request<T> {
+fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
     req.headers_mut().remove(http::header::HOST);
 
-    if let http::header::Entry::Occupied(cookies) =
-        req.headers_mut().entry(http::header::COOKIE)
-    {
+    if let http::header::Entry::Occupied(cookies) = req.headers_mut().entry(http::header::COOKIE) {
         let joined_cookies: String = cookies
             .remove_entry_mult()
             .1
@@ -326,7 +320,8 @@ fn h2_to_http11<T>(mut req: Request<T>) -> Request<T> {
             .collect::<Vec<_>>()
             .join("; ");
 
-        req.headers_mut().insert(http::header::COOKIE, joined_cookies.try_into().unwrap());
+        req.headers_mut()
+            .insert(http::header::COOKIE, joined_cookies.try_into().unwrap());
     }
 
     let (mut parts, body) = req.into_parts();
