@@ -126,7 +126,7 @@ where
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        tokio::task::spawn(async move {
+        tokio::spawn(async move {
             let authority = req
                 .uri()
                 .authority()
