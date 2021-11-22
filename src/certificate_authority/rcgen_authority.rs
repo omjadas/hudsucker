@@ -95,7 +95,7 @@ impl CertificateAuthority for RcgenAuthority {
         server_cfg.alpn_protocols = vec![
             #[cfg(feature = "http2")]
             b"h2".to_vec(),
-            b"http/1.1".to_vec()
+            b"http/1.1".to_vec(),
         ];
 
         let server_cfg = Arc::new(server_cfg);
