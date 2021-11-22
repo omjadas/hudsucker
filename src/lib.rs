@@ -189,12 +189,15 @@ where
 }
 
 fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> MaybeProxyClient {
-    let https: HttpsConnector<HttpConnector> = HttpsConnectorBuilder::new()
+    let https = HttpsConnectorBuilder::new()
         .with_webpki_roots()
         .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build();
+        .enable_http1();
+
+    #[cfg(feature = "http2")]
+    let https = https.enable_http2();
+
+    let https = https.build();
 
     if let Some(proxy) = upstream_proxy {
         // The following can only panic when using the "rustls" hyper_proxy feature

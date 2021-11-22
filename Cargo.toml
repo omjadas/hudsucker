@@ -23,9 +23,9 @@ bytes = "1"
 chrono = "0.4"
 futures = "0.3"
 http = "0.2"
-hyper = { version = "0.14", features = ["full"] }
+hyper = { version = "0.14", features = ["client", "http1", "server", "stream", "tcp"] }
 hyper-proxy = { version = "0.9", default-features = false, features = ["rustls-webpki"] }
-hyper-rustls = { version = "0.23", features = ["http2", "webpki-roots"] }
+hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
 hyper-tungstenite = "0.5"
 log = "0.4"
 moka = { version = "0.6", features = ["future"], optional = true }
@@ -43,9 +43,10 @@ rustls-pemfile = "0.2"
 
 [features]
 default = ["rcgen-certs"]
-full = ["rcgen-certs", "openssl-certs"]
-rcgen-certs = ["rcgen", "moka"]
+full = ["http2", "openssl-certs", "rcgen-certs"]
+http2 = ["hyper/http2", "hyper-rustls/http2"]
 openssl-certs = ["openssl", "moka"]
+rcgen-certs = ["rcgen", "moka"]
 
 [[example]]
 name = "openssl"
