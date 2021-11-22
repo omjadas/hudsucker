@@ -25,7 +25,7 @@ futures = "0.3"
 http = "0.2"
 hyper = { version = "0.14", features = ["full"] }
 hyper-proxy = { version = "0.9", default-features = false, features = ["rustls-webpki"] }
-hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
+hyper-rustls = { version = "0.23", features = ["http2", "webpki-roots"] }
 hyper-tungstenite = "0.5"
 log = "0.4"
 moka = { version = "0.6", features = ["future"], optional = true }

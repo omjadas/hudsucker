@@ -194,6 +194,7 @@ fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> MaybeProxyClient {
         .with_webpki_roots()
         .https_or_http()
         .enable_http1()
+        .enable_http2()
         .build();
 
     if let Some(proxy) = upstream_proxy {
