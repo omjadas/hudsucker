@@ -312,6 +312,7 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
     req.headers_mut().remove(http::header::HOST);
 
+    // HTTP/2.0 supports multiple cookie headers, but HTTP/1.x only supports one.
     if let http::header::Entry::Occupied(cookies) = req.headers_mut().entry(http::header::COOKIE) {
         let joined_cookies: String = cookies
             .remove_entry_mult()
@@ -320,8 +321,10 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
             .collect::<Vec<_>>()
             .join("; ");
 
-        req.headers_mut()
-            .insert(http::header::COOKIE, joined_cookies.try_into().unwrap());
+        req.headers_mut().insert(
+            http::header::COOKIE,
+            joined_cookies.try_into().expect("Failed to join cookies"),
+        );
     }
 
     let (mut parts, body) = req.into_parts();
