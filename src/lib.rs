@@ -5,6 +5,13 @@
 //! - Modify HTTP/S requests
 //! - Modify HTTP/S responses
 //! - Modify websocket messages
+//!
+//! ## Features
+//!
+//! - `full`: Enables all features.
+//! - `http2`: Enables HTTP/2 support.
+//! - `openssl-certs`: Enables `OpensslAuthority`.
+//! - `rcgen-certs`: Enables `RcgenAuthority` (enabled by default).
 
 mod decoder;
 mod error;
