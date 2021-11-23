@@ -41,7 +41,7 @@ async fn main() {
     let private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
     let ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");
     let private_key =
-        PKey::private_key_from_pem(&private_key_bytes).expect("Failed to parse private key");
+        PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
     let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
 
     let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
