@@ -240,7 +240,7 @@ where
         stream: tokio_rustls::server::TlsStream<Rewind<Upgraded>>,
     ) -> Result<(), hyper::Error> {
         let service = service_fn(|mut req| {
-            if req.version() == http::Version::HTTP_11 {
+            if req.version() == http::Version::HTTP_10 || req.version() == http::Version::HTTP_11 {
                 let authority = req
                     .headers()
                     .get(http::header::HOST)
