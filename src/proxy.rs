@@ -72,9 +72,8 @@ where
             client_addr: self.client_addr,
         };
 
-        let req = normalize_request(req);
         let req = match self.http_handler.handle_request(&ctx, req).await {
-            RequestOrResponse::Request(req) => req,
+            RequestOrResponse::Request(req) => normalize_request(req),
             RequestOrResponse::Response(res) => return Ok(res),
         };
 
