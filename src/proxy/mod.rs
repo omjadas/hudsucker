@@ -14,6 +14,7 @@ use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 
 pub use builder::ProxyBuilder;
 
+/// A proxy server. This must be constructed with a [`ProxyBuilder`].
 #[derive(Debug)]
 pub struct Proxy<C, CA, H, M1, M2>
 where
@@ -39,6 +40,9 @@ where
     M1: MessageHandler,
     M2: MessageHandler,
 {
+    /// Attempts to start the proxy server.
+    ///
+    /// This will fail if the proxy server is unable to be started.
     pub async fn start<F: Future<Output = ()>>(self, shutdown_signal: F) -> Result<(), Error> {
         let make_service = make_service_fn(move |conn: &AddrStream| {
             let client = self.client.clone();
