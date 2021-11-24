@@ -17,6 +17,7 @@ use tokio_rustls::rustls::{self, ServerConfig};
 /// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
 /// up to a max size that is provided when creating the authority. Certificates are generated using
 /// the `openssl` crate.
+#[cfg_attr(docsrs, doc(cfg(feature = "openssl-certs")))]
 #[derive(Clone)]
 pub struct OpensslAuthority {
     pkey: PKey<Private>,

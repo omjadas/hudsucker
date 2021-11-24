@@ -9,10 +9,8 @@ use std::sync::Arc;
 use tokio_rustls::rustls::ServerConfig;
 
 #[cfg(feature = "openssl-certs")]
-#[cfg_attr(docsrs, doc(cfg(feature = "openssl-certs")))]
 pub use openssl_authority::*;
 #[cfg(feature = "rcgen-certs")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rcgen-certs")))]
 pub use rcgen_authority::*;
 
 /// Issues certificates for use when communicating with clients.
