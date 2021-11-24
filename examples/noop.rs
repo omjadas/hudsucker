@@ -29,17 +29,13 @@ async fn main() {
     let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority");
 
-    let proxy_config = ProxyConfig {
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        shutdown_signal: shutdown_signal(),
-        http_handler: NoopHttpHandler::new(),
-        incoming_message_handler: NoopMessageHandler::new(),
-        outgoing_message_handler: NoopMessageHandler::new(),
-        upstream_proxy: None,
-        ca,
-    };
+    let proxy = ProxyBuilder::new()
+        .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
+        .with_rustls_client()
+        .with_ca(ca)
+        .build();
 
-    if let Err(e) = start_proxy(proxy_config).await {
+    if let Err(e) = proxy.start(shutdown_signal()).await {
         error!("{}", e);
     }
 }

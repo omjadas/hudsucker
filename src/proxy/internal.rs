@@ -1,12 +1,12 @@
 use crate::{
-    CertificateAuthority, HttpContext, HttpHandler, MaybeProxyClient, MessageContext,
+    certificate_authority::CertificateAuthority, HttpContext, HttpHandler, MessageContext,
     MessageHandler, RequestOrResponse, Rewind,
 };
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::PathAndQuery;
 use hyper::{
-    server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Method, Request, Response,
-    Uri,
+    client::connect::Connect, server::conn::Http, service::service_fn, upgrade::Upgraded, Body,
+    Client, Method, Request, Response, Uri,
 };
 use log::*;
 use std::{net::SocketAddr, sync::Arc};
@@ -18,30 +18,32 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-pub(crate) struct Proxy<H, M1, M2, C>
+pub(crate) struct InternalProxy<C, CA, H, M1, M2>
 where
+    C: Connect + Clone + Send + Sync + 'static,
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
-    C: CertificateAuthority,
+    CA: CertificateAuthority,
 {
-    pub ca: Arc<C>,
-    pub client: MaybeProxyClient,
+    pub ca: Arc<CA>,
+    pub client: Client<C>,
     pub http_handler: H,
     pub incoming_message_handler: M1,
     pub outgoing_message_handler: M2,
     pub client_addr: SocketAddr,
 }
 
-impl<H, M1, M2, C> Clone for Proxy<H, M1, M2, C>
+impl<C, CA, H, M1, M2> Clone for InternalProxy<C, CA, H, M1, M2>
 where
+    C: Connect + Clone + Send + Sync + 'static,
+    CA: CertificateAuthority,
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
-    C: CertificateAuthority,
 {
     fn clone(&self) -> Self {
-        Proxy {
+        InternalProxy {
             ca: self.ca.clone(),
             client: self.client.clone(),
             http_handler: self.http_handler.clone(),
@@ -52,12 +54,13 @@ where
     }
 }
 
-impl<H, M1, M2, C> Proxy<H, M1, M2, C>
+impl<C, CA, H, M1, M2> InternalProxy<C, CA, H, M1, M2>
 where
+    C: Connect + Clone + Send + Sync + 'static,
+    CA: CertificateAuthority,
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
-    C: CertificateAuthority,
 {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {
@@ -116,10 +119,7 @@ where
             return Ok(res);
         }
 
-        let res = match self.client {
-            MaybeProxyClient::Proxy(client) => client.request(req).await?,
-            MaybeProxyClient::Https(client) => client.request(req).await?,
-        };
+        let res = self.client.request(req).await?;
 
         Ok(self.http_handler.handle_response(&ctx, res).await)
     }
@@ -178,7 +178,7 @@ where
         let (server_sink, server_stream) = server_socket.split();
         let (client_sink, client_stream) = client_socket.split();
 
-        let Proxy {
+        let InternalProxy {
             incoming_message_handler,
             outgoing_message_handler,
             ..

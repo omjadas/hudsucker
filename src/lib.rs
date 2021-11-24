@@ -21,17 +21,8 @@ mod rewind;
 
 pub mod certificate_authority;
 
-use certificate_authority::CertificateAuthority;
-use hyper::{
-    client::HttpConnector,
-    server::conn::AddrStream,
-    service::{make_service_fn, service_fn},
-    Body, Client, Request, Response, Server, Uri,
-};
-use hyper_proxy::{Proxy as UpstreamProxy, ProxyConnector};
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
-use proxy::Proxy;
-use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
+use hyper::{Body, Request, Response, Uri};
+use std::net::SocketAddr;
 use tokio_tungstenite::tungstenite::Message;
 
 pub(crate) use rewind::Rewind;
@@ -40,18 +31,12 @@ pub use async_trait;
 pub use decoder::{decode_request, decode_response};
 pub use error::Error;
 pub use hyper;
-pub use hyper_proxy;
 pub use noop::*;
 #[cfg(feature = "openssl")]
 pub use openssl;
+pub use proxy::*;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite::tungstenite;
-
-#[derive(Clone)]
-enum MaybeProxyClient {
-    Proxy(Client<ProxyConnector<HttpsConnector<HttpConnector>>>),
-    Https(Client<HttpsConnector<HttpConnector>>),
-}
 
 /// Enum representing either an HTTP request or response.
 #[derive(Debug)]
@@ -111,118 +96,4 @@ pub trait MessageHandler: Clone + Send + Sync + 'static {
         context: &MessageContext,
         message: Message,
     ) -> Option<Message>;
-}
-
-/// Configuration for the proxy server.
-///
-/// The proxy server can be configured with a number of options.
-#[derive(Clone)]
-pub struct ProxyConfig<F: Future<Output = ()>, H, M1, M2, C>
-where
-    H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
-    C: CertificateAuthority,
-{
-    /// The address to listen on.
-    pub listen_addr: SocketAddr,
-    /// A future that once resolved will cause the proxy server to shut down.
-    pub shutdown_signal: F,
-    /// The certificate authority to use.
-    pub ca: C,
-    /// A handler for HTTP requests and responses.
-    pub http_handler: H,
-    /// A handler for websocket messages sent from the client to the upstream server.
-    pub incoming_message_handler: M1,
-    /// A handler for websocket messages sent from the upstream server to the client.
-    pub outgoing_message_handler: M2,
-    /// The upstream proxy to use.
-    pub upstream_proxy: Option<UpstreamProxy>,
-}
-
-/// Attempts to start a proxy server using the provided configuration options.
-///
-/// This will fail if the proxy server is unable to be started.
-pub async fn start_proxy<F, H, M1, M2, C>(
-    ProxyConfig {
-        listen_addr,
-        shutdown_signal,
-        ca,
-        http_handler,
-        incoming_message_handler,
-        outgoing_message_handler,
-        upstream_proxy,
-    }: ProxyConfig<F, H, M1, M2, C>,
-) -> Result<(), Error>
-where
-    F: Future<Output = ()>,
-    H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
-    C: CertificateAuthority,
-{
-    let client = gen_client(upstream_proxy);
-    let ca = Arc::new(ca);
-
-    let make_service = make_service_fn(move |conn: &AddrStream| {
-        let client = client.clone();
-        let ca = Arc::clone(&ca);
-        let http_handler = http_handler.clone();
-        let incoming_message_handler = incoming_message_handler.clone();
-        let outgoing_message_handler = outgoing_message_handler.clone();
-        let client_addr = conn.remote_addr();
-        async move {
-            Ok::<_, Infallible>(service_fn(move |req| {
-                Proxy {
-                    ca: Arc::clone(&ca),
-                    client: client.clone(),
-                    http_handler: http_handler.clone(),
-                    incoming_message_handler: incoming_message_handler.clone(),
-                    outgoing_message_handler: outgoing_message_handler.clone(),
-                    client_addr,
-                }
-                .proxy(req)
-            }))
-        }
-    });
-
-    Server::bind(&listen_addr)
-        .http1_preserve_header_case(true)
-        .http1_title_case_headers(true)
-        .serve(make_service)
-        .with_graceful_shutdown(shutdown_signal)
-        .await
-        .map_err(|err| err.into())
-}
-
-fn gen_client(upstream_proxy: Option<UpstreamProxy>) -> MaybeProxyClient {
-    let https = HttpsConnectorBuilder::new()
-        .with_webpki_roots()
-        .https_or_http()
-        .enable_http1();
-
-    #[cfg(feature = "http2")]
-    let https = https.enable_http2();
-
-    let https = https.build();
-
-    if let Some(proxy) = upstream_proxy {
-        // The following can only panic when using the "rustls" hyper_proxy feature
-        let connector = ProxyConnector::from_proxy(https, proxy)
-            .expect("Failed to create upstream proxy connector");
-
-        return MaybeProxyClient::Proxy(
-            Client::builder()
-                .http1_title_case_headers(true)
-                .http1_preserve_header_case(true)
-                .build(connector),
-        );
-    } else {
-        MaybeProxyClient::Https(
-            Client::builder()
-                .http1_title_case_headers(true)
-                .http1_preserve_header_case(true)
-                .build(https),
-        )
-    }
 }

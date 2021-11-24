@@ -46,17 +46,14 @@ async fn main() {
 
     let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
 
-    let proxy_config = ProxyConfig {
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-        shutdown_signal: shutdown_signal(),
-        http_handler: LogHandler {},
-        incoming_message_handler: NoopMessageHandler::new(),
-        outgoing_message_handler: NoopMessageHandler::new(),
-        upstream_proxy: None,
-        ca,
-    };
+    let proxy = ProxyBuilder::new()
+        .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
+        .with_rustls_client()
+        .with_ca(ca)
+        .with_http_handler(LogHandler {})
+        .build();
 
-    if let Err(e) = start_proxy(proxy_config).await {
+    if let Err(e) = proxy.start(shutdown_signal()).await {
         error!("{}", e);
     }
 }
