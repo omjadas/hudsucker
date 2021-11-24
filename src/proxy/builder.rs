@@ -109,429 +109,100 @@ where
     C: Connect + Clone + Send + Sync + 'static,
 {
     /// Set the certificate authority to use.
-    pub fn with_ca<CA>(self, ca: CA) -> ProxyBuilder<WantsHandlers1<C, CA>>
-    where
-        CA: CertificateAuthority,
+    pub fn with_ca<CA: CertificateAuthority>(
+        self,
+        ca: CA,
+    ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHttpHandler, NoopMessageHandler, NoopMessageHandler>>
     {
-        ProxyBuilder(WantsHandlers1 {
+        ProxyBuilder(WantsHandlers {
             addr: self.0.addr,
             client: self.0.client,
             ca,
+            http_handler: NoopHttpHandler {},
+            incoming_message_handler: NoopMessageHandler {},
+            outgoing_message_handler: NoopMessageHandler {},
         })
     }
 }
 
 /// Builder state that can take additional handlers.
 #[derive(Debug)]
-pub struct WantsHandlers1<C, CA>
+pub struct WantsHandlers<C, CA, H, M1, M2>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
+    H: HttpHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
     addr: SocketAddr,
     client: Client<C>,
     ca: CA,
+    http_handler: H,
+    incoming_message_handler: M1,
+    outgoing_message_handler: M2,
 }
 
-impl<C, CA> ProxyBuilder<WantsHandlers1<C, CA>>
+impl<C, CA, H, M1, M2> ProxyBuilder<WantsHandlers<C, CA, H, M1, M2>>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
+    H: HttpHandler,
+    M1: MessageHandler,
+    M2: MessageHandler,
 {
-    /// Set the HTTP handler to use.
-    pub fn with_http_handler<H>(self, http_handler: H) -> ProxyBuilder<WantsHandlers2<C, CA, H>>
-    where
-        H: HttpHandler,
-    {
-        ProxyBuilder(WantsHandlers2 {
+    /// Set the HTTP handler.
+    pub fn with_http_handler<H2: HttpHandler>(
+        self,
+        http_handler: H2,
+    ) -> ProxyBuilder<WantsHandlers<C, CA, H2, M1, M2>> {
+        ProxyBuilder(WantsHandlers {
             addr: self.0.addr,
             client: self.0.client,
             ca: self.0.ca,
             http_handler,
+            incoming_message_handler: self.0.incoming_message_handler,
+            outgoing_message_handler: self.0.outgoing_message_handler,
         })
     }
 
-    /// Set the message handler to use.
-    pub fn with_incoming_message_handler<M1>(
+    /// Set the incoming message handler.
+    pub fn with_incoming_message_handler<M: MessageHandler>(
         self,
-        incoming_message_handler: M1,
-    ) -> ProxyBuilder<WantsHandlers3<C, CA, M1>>
-    where
-        M1: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers3 {
+        incoming_message_handler: M,
+    ) -> ProxyBuilder<WantsHandlers<C, CA, H, M, M2>> {
+        ProxyBuilder(WantsHandlers {
             addr: self.0.addr,
             client: self.0.client,
             ca: self.0.ca,
+            http_handler: self.0.http_handler,
             incoming_message_handler,
+            outgoing_message_handler: self.0.outgoing_message_handler,
         })
     }
 
-    /// Set the message handler to use.
-    pub fn with_outgoing_message_handler<M2>(
+    /// Set the outgoing message handler.
+    pub fn with_outgoing_message_handler<M: MessageHandler>(
         self,
-        outgoing_message_handler: M2,
-    ) -> ProxyBuilder<WantsHandlers4<C, CA, M2>>
-    where
-        M2: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers4 {
+        outgoing_message_handler: M,
+    ) -> ProxyBuilder<WantsHandlers<C, CA, H, M1, M>> {
+        ProxyBuilder(WantsHandlers {
             addr: self.0.addr,
             client: self.0.client,
             ca: self.0.ca,
+            http_handler: self.0.http_handler,
+            incoming_message_handler: self.0.incoming_message_handler,
             outgoing_message_handler,
         })
     }
 
     /// Build the proxy.
-    pub fn build(self) -> Proxy<C, CA, NoopHttpHandler, NoopMessageHandler, NoopMessageHandler> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: NoopHttpHandler::new(),
-            incoming_message_handler: NoopMessageHandler::new(),
-            outgoing_message_handler: NoopMessageHandler::new(),
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers2<C, CA, H>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    http_handler: H,
-}
-
-impl<C, CA, H> ProxyBuilder<WantsHandlers2<C, CA, H>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-{
-    pub fn with_incoming_message_handler<M1>(
-        self,
-        incoming_message_handler: M1,
-    ) -> ProxyBuilder<WantsHandlers5<C, CA, H, M1>>
-    where
-        M1: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers5 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            http_handler: self.0.http_handler,
-            incoming_message_handler,
-        })
-    }
-
-    pub fn with_outgoing_message_handler<M2>(
-        self,
-        outgoing_message_handler: M2,
-    ) -> ProxyBuilder<WantsHandlers6<C, CA, H, M2>>
-    where
-        M2: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers6 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            http_handler: self.0.http_handler,
-            outgoing_message_handler,
-        })
-    }
-
-    pub fn build(self) -> Proxy<C, CA, H, NoopMessageHandler, NoopMessageHandler> {
+    pub fn build(self) -> Proxy<C, CA, H, M1, M2> {
         Proxy {
             listen_addr: self.0.addr,
             client: self.0.client,
             ca: Arc::new(self.0.ca),
             http_handler: self.0.http_handler,
-            incoming_message_handler: NoopMessageHandler::new(),
-            outgoing_message_handler: NoopMessageHandler::new(),
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers3<C, CA, M1>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M1: MessageHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    incoming_message_handler: M1,
-}
-
-impl<C, CA, M1> ProxyBuilder<WantsHandlers3<C, CA, M1>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M1: MessageHandler,
-{
-    pub fn with_http_handler<H>(self, http_handler: H) -> ProxyBuilder<WantsHandlers5<C, CA, H, M1>>
-    where
-        H: HttpHandler,
-    {
-        ProxyBuilder(WantsHandlers5 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-        })
-    }
-
-    pub fn with_outgoing_message_handler<M2>(
-        self,
-        outgoing_message_handler: M2,
-    ) -> ProxyBuilder<WantsHandlers7<C, CA, M1, M2>>
-    where
-        M2: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers7 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler,
-        })
-    }
-
-    pub fn build(self) -> Proxy<C, CA, NoopHttpHandler, M1, NoopMessageHandler> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: NoopHttpHandler::new(),
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler: NoopMessageHandler::new(),
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers4<C, CA, M2>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M2: MessageHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    outgoing_message_handler: M2,
-}
-
-impl<C, CA, M2> ProxyBuilder<WantsHandlers4<C, CA, M2>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M2: MessageHandler,
-{
-    pub fn with_http_handler<H>(
-        self,
-        http_handler: H,
-    ) -> ProxyBuilder<WantsHandlers5<C, CA, H, NoopMessageHandler>>
-    where
-        H: HttpHandler,
-    {
-        ProxyBuilder(WantsHandlers5 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            http_handler,
-            incoming_message_handler: NoopMessageHandler::new(),
-        })
-    }
-
-    pub fn with_incoming_message_handler<M1>(
-        self,
-        incoming_message_handler: M1,
-    ) -> ProxyBuilder<WantsHandlers7<C, CA, M1, M2>>
-    where
-        M1: MessageHandler,
-    {
-        ProxyBuilder(WantsHandlers7 {
-            addr: self.0.addr,
-            client: self.0.client,
-            ca: self.0.ca,
-            incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        })
-    }
-
-    pub fn build(self) -> Proxy<C, CA, NoopHttpHandler, NoopMessageHandler, M2> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: NoopHttpHandler::new(),
-            incoming_message_handler: NoopMessageHandler::new(),
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers5<C, CA, H, M1>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    M1: MessageHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    http_handler: H,
-    incoming_message_handler: M1,
-}
-
-impl<C, CA, H, M1> ProxyBuilder<WantsHandlers5<C, CA, H, M1>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    M1: MessageHandler,
-{
-    pub fn with_outgoing_message_handler<M2>(
-        self,
-        outgoing_message_handler: M2,
-    ) -> Proxy<C, CA, H, M1, M2>
-    where
-        M2: MessageHandler,
-    {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: self.0.http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler,
-        }
-    }
-
-    pub fn build(self) -> Proxy<C, CA, H, M1, NoopMessageHandler> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: self.0.http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler: NoopMessageHandler::new(),
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers6<C, CA, H, M2>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    M2: MessageHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    http_handler: H,
-    outgoing_message_handler: M2,
-}
-
-impl<C, CA, H, M2> ProxyBuilder<WantsHandlers6<C, CA, H, M2>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    M2: MessageHandler,
-{
-    pub fn with_incoming_message_handler<M1>(
-        self,
-        incoming_message_handler: M1,
-    ) -> Proxy<C, CA, H, M1, M2>
-    where
-        M1: MessageHandler,
-    {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: self.0.http_handler,
-            incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        }
-    }
-
-    pub fn build(self) -> Proxy<C, CA, H, NoopMessageHandler, M2> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: self.0.http_handler,
-            incoming_message_handler: NoopMessageHandler::new(),
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        }
-    }
-}
-
-/// Builder state that can take additional handlers.
-#[derive(Debug)]
-pub struct WantsHandlers7<C, CA, M1, M2>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M1: MessageHandler,
-    M2: MessageHandler,
-{
-    addr: SocketAddr,
-    client: Client<C>,
-    ca: CA,
-    incoming_message_handler: M1,
-    outgoing_message_handler: M2,
-}
-
-impl<C, CA, M1, M2> ProxyBuilder<WantsHandlers7<C, CA, M1, M2>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    M1: MessageHandler,
-    M2: MessageHandler,
-{
-    pub fn with_http_handler<H>(self, http_handler: H) -> Proxy<C, CA, H, M1, M2>
-    where
-        H: HttpHandler,
-    {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        }
-    }
-
-    pub fn build(self) -> Proxy<C, CA, NoopHttpHandler, M1, M2> {
-        Proxy {
-            listen_addr: self.0.addr,
-            client: self.0.client,
-            ca: Arc::new(self.0.ca),
-            http_handler: NoopHttpHandler::new(),
             incoming_message_handler: self.0.incoming_message_handler,
             outgoing_message_handler: self.0.outgoing_message_handler,
         }

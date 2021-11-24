@@ -21,10 +21,10 @@ use tokio_tungstenite::{
 pub(crate) struct InternalProxy<C, CA, H, M1, M2>
 where
     C: Connect + Clone + Send + Sync + 'static,
+    CA: CertificateAuthority,
     H: HttpHandler,
     M1: MessageHandler,
     M2: MessageHandler,
-    CA: CertificateAuthority,
 {
     pub ca: Arc<CA>,
     pub client: Client<C>,
