@@ -9,18 +9,21 @@ use hyper_rustls::{HttpsConnector as RustlsConnector, HttpsConnectorBuilder};
 use hyper_tls::HttpsConnector as NativeTlsConnector;
 use std::{net::SocketAddr, sync::Arc};
 
-// A builder for creating a proxy.
+/// A builder for creating a proxy.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ProxyBuilder<T>(T);
 
+/// Builder state that needs an address.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct WantsAddr(());
 
 impl ProxyBuilder<WantsAddr> {
-    // Create a new ProxyBuilder.
+    /// Create a new ProxyBuilder.
     pub fn new() -> Self {
         Self::default()
     }
 
-    // Set the address to listen on.
+    /// Set the address to listen on.
     pub fn with_addr(self, addr: SocketAddr) -> ProxyBuilder<WantsClient> {
         ProxyBuilder(WantsClient { addr })
     }
@@ -32,11 +35,14 @@ impl Default for ProxyBuilder<WantsAddr> {
     }
 }
 
+/// Builder state that needs a client.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct WantsClient {
     addr: SocketAddr,
 }
 
 impl ProxyBuilder<WantsClient> {
+    /// Use a hyper-rustls connector.
     #[cfg(feature = "rustls-client")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rustls-client")))]
     pub fn with_rustls_client(self) -> ProxyBuilder<WantsCa<RustlsConnector<HttpConnector>>> {
@@ -59,6 +65,7 @@ impl ProxyBuilder<WantsClient> {
         })
     }
 
+    /// Use a hyper-tls connector.
     #[cfg(feature = "native-tls-client")]
     #[cfg_attr(docsrs, doc(cfg(feature = "native-tls-client")))]
     pub fn with_native_tls_client(
@@ -75,7 +82,7 @@ impl ProxyBuilder<WantsClient> {
         })
     }
 
-    // Set the client to use.
+    /// Use a custom client.
     pub fn with_client<C>(self, client: Client<C>) -> ProxyBuilder<WantsCa<C>>
     where
         C: Connect + Clone + Send + Sync + 'static,
@@ -87,6 +94,8 @@ impl ProxyBuilder<WantsClient> {
     }
 }
 
+/// Builder state that needs a certificate authority.
+#[derive(Debug)]
 pub struct WantsCa<C>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -99,7 +108,7 @@ impl<C> ProxyBuilder<WantsCa<C>>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    // Set the certificate authority to use.
+    /// Set the certificate authority to use.
     pub fn with_ca<CA>(self, ca: CA) -> ProxyBuilder<WantsHandlers1<C, CA>>
     where
         CA: CertificateAuthority,
@@ -112,6 +121,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers1<C, CA>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -127,7 +138,7 @@ where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
 {
-    // Set the HTTP handler to use.
+    /// Set the HTTP handler to use.
     pub fn with_http_handler<H>(self, http_handler: H) -> ProxyBuilder<WantsHandlers2<C, CA, H>>
     where
         H: HttpHandler,
@@ -140,13 +151,13 @@ where
         })
     }
 
-    // Set the message handler to use.
-    pub fn with_incoming_message_handler<M>(
+    /// Set the message handler to use.
+    pub fn with_incoming_message_handler<M1>(
         self,
-        incoming_message_handler: M,
-    ) -> ProxyBuilder<WantsHandlers3<C, CA, M>>
+        incoming_message_handler: M1,
+    ) -> ProxyBuilder<WantsHandlers3<C, CA, M1>>
     where
-        M: MessageHandler,
+        M1: MessageHandler,
     {
         ProxyBuilder(WantsHandlers3 {
             addr: self.0.addr,
@@ -156,13 +167,13 @@ where
         })
     }
 
-    // Set the message handler to use.
-    pub fn with_outgoing_message_handler<M>(
+    /// Set the message handler to use.
+    pub fn with_outgoing_message_handler<M2>(
         self,
-        outgoing_message_handler: M,
-    ) -> ProxyBuilder<WantsHandlers4<C, CA, M>>
+        outgoing_message_handler: M2,
+    ) -> ProxyBuilder<WantsHandlers4<C, CA, M2>>
     where
-        M: MessageHandler,
+        M2: MessageHandler,
     {
         ProxyBuilder(WantsHandlers4 {
             addr: self.0.addr,
@@ -172,7 +183,7 @@ where
         })
     }
 
-    // Build the proxy.
+    /// Build the proxy.
     pub fn build(self) -> Proxy<C, CA, NoopHttpHandler, NoopMessageHandler, NoopMessageHandler> {
         Proxy {
             listen_addr: self.0.addr,
@@ -185,6 +196,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers2<C, CA, H>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -247,6 +260,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers3<C, CA, M1>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -306,6 +321,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers4<C, CA, M2>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -368,6 +385,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers5<C, CA, H, M1>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -418,6 +437,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers6<C, CA, H, M2>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -468,6 +489,8 @@ where
     }
 }
 
+/// Builder state that can take additional handlers.
+#[derive(Debug)]
 pub struct WantsHandlers7<C, CA, M1, M2>
 where
     C: Connect + Clone + Send + Sync + 'static,
