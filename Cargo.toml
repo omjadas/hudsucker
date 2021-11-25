@@ -44,7 +44,7 @@ tokio = { version = "1", features = ["full"] }
 
 [features]
 default = ["rcgen-certs", "rustls-client"]
-full = ["http2", "openssl-certs", "rcgen-certs"]
+full = ["http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
 http2 = ["hyper/http2", "hyper-rustls/http2"]
 native-tls-client = ["hyper-tls"]
 openssl-certs = ["openssl", "moka"]
