@@ -43,7 +43,7 @@ where
     /// Attempts to start the proxy server.
     ///
     /// This will fail if the proxy server is unable to be started.
-    pub async fn start<F: Future<Output = ()>>(self, shutdown_signal: F) -> Result<(), Error> {
+    pub async fn start<F: Future<Output = ()>>(&self, shutdown_signal: F) -> Result<(), Error> {
         let make_service = make_service_fn(move |conn: &AddrStream| {
             let client = self.client.clone();
             let ca = Arc::clone(&self.ca);
