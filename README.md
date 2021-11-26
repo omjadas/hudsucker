@@ -14,10 +14,10 @@ Hudsucker is a MITM HTTP/S proxy written in Rust that allows you to:
 
 - `full`: Enables all features.
 - `http2`: Enables HTTP/2 support.
-- `native-tls-client`: Enables `ProxyBuilder::with_rustls_client` (enabled by default).
+- `native-tls-client`: Enables `ProxyBuilder::with_rustls_client`.
 - `openssl-certs`: Enables `certificate_authority::OpensslAuthority`.
 - `rcgen-certs`: Enables `certificate_authority::RcgenAuthority` (enabled by default).
-- `rustls-client`: Enables `ProxyBuilder::with_native_tls_client`.
+- `rustls-client`: Enables `ProxyBuilder::with_native_tls_client` (enabled by default).
 
 ## Usage
 
