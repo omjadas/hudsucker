@@ -1,7 +1,7 @@
 use hudsucker::{certificate_authority::RcgenAuthority, *};
-use log::*;
 use rustls_pemfile as pemfile;
 use std::net::SocketAddr;
+use tracing::*;
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -11,7 +11,7 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
     let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");

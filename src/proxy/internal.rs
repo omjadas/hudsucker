@@ -8,15 +8,38 @@ use hyper::{
     client::connect::Connect, server::conn::Http, service::service_fn, upgrade::Upgraded, Body,
     Client, Method, Request, Response, Uri,
 };
-use log::*;
-use std::{net::SocketAddr, sync::Arc};
-use tokio::io::AsyncReadExt;
+use std::{future::Future, net::SocketAddr, sync::Arc};
+use tokio::{io::AsyncReadExt, task::JoinHandle};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{self, Message},
     WebSocketStream,
 };
+use tracing::*;
+
+async fn trace_future<T>(span: Span, fut: impl Future<Output = T>) -> T {
+    fut.instrument(span).await
+}
+
+fn spawn_with_trace<T: Send + Sync + 'static>(
+    span: Span,
+    fut: impl Future<Output = T> + Send + 'static,
+) -> JoinHandle<T> {
+    tokio::spawn(trace_future(span, fut))
+}
+
+macro_rules! span_from_request {
+    ($name:expr, $req:expr, $client_addr:expr) => {{
+        info_span!(
+            $name,
+            version = ?$req.version(),
+            method = %$req.method(),
+            uri = %$req.uri(),
+            client_addr = %$client_addr
+        )
+    }};
+}
 
 pub(crate) struct InternalProxy<C, CA, H, M1, M2>
 where
@@ -125,13 +148,14 @@ where
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        tokio::spawn(async move {
-            let authority = req
-                .uri()
-                .authority()
-                .expect("URI does not contain authority")
-                .clone();
+        let span = span_from_request!("process_connect", &req, self.client_addr);
+        let authority = req
+            .uri()
+            .authority()
+            .expect("URI does not contain authority")
+            .clone();
 
+        let fut = async move {
             match hyper::upgrade::on(req).await {
                 Ok(mut upgraded) => {
                     let mut buffer = [0; 4];
@@ -147,7 +171,7 @@ where
 
                     if bytes_read == 4 && buffer == *b"GET " {
                         if let Err(e) = self.serve_websocket(upgraded).await {
-                            error!("websocket connect error for {}: {}", authority, e);
+                            error!("websocket connect error: {}", e);
                         }
                     } else {
                         let server_config = self.ca.gen_server_config(&authority).await;
@@ -158,15 +182,16 @@ where
 
                         if let Err(e) = self.serve_https(stream).await {
                             if !e.to_string().starts_with("error shutting down connection") {
-                                error!("https connect error for {}: {}", authority, e);
+                                error!("https connect error: {}", e);
                             }
                         }
                     }
                 }
-                Err(e) => error!("upgrade error for {}: {}", authority, e),
+                Err(e) => error!("upgrade error: {}", e),
             };
-        });
+        };
 
+        spawn_with_trace(span, fut);
         Ok(Response::new(Body::empty()))
     }
 
@@ -281,12 +306,14 @@ fn spawn_message_forwarder(
     client_addr: SocketAddr,
     uri: Uri,
 ) {
+    let span = info_span!("message_forwarder", client_addr=%client_addr, server_uri=%uri);
+
     let ctx = MessageContext {
         client_addr,
         server_uri: uri,
     };
 
-    tokio::spawn(async move {
+    let fut = async move {
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => {
@@ -304,7 +331,9 @@ fn spawn_message_forwarder(
                 Err(e) => error!("websocket message error: {}", e),
             }
         }
-    });
+    };
+
+    spawn_with_trace(span, fut);
 }
 
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
