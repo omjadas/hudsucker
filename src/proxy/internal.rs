@@ -94,65 +94,69 @@ where
     }
 
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let ctx = HttpContext {
-            client_addr: self.client_addr,
-        };
-
-        let req = match self.http_handler.handle_request(&ctx, req).await {
-            RequestOrResponse::Request(req) => normalize_request(req),
-            RequestOrResponse::Response(res) => return Ok(res),
-        };
-
-        if hyper_tungstenite::is_upgrade_request(&req) {
-            let scheme = if req.uri().scheme().unwrap_or(&http::uri::Scheme::HTTP)
-                == &http::uri::Scheme::HTTP
-            {
-                "ws"
-            } else {
-                "wss"
+        let span = span_from_request!("process_request", req, self.client_addr);
+        let fut = async move {
+            let ctx = HttpContext {
+                client_addr: self.client_addr,
             };
 
-            let uri = http::uri::Builder::new()
-                .scheme(scheme)
-                .authority(
-                    req.uri()
-                        .authority()
-                        .expect("Authority not included in request")
-                        .to_owned(),
-                )
-                .path_and_query(
-                    req.uri()
-                        .path_and_query()
-                        .unwrap_or(&PathAndQuery::from_static("/"))
-                        .to_owned(),
-                )
-                .build()
-                .expect("Failed to build URI for websocket connection");
+            let req = match self.http_handler.handle_request(&ctx, req).await {
+                RequestOrResponse::Request(req) => normalize_request(req),
+                RequestOrResponse::Response(res) => return Ok(res),
+            };
 
-            let span = span_from_request!("websocket", req, self.client_addr);
-            let (res, websocket) =
-                hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
+            if hyper_tungstenite::is_upgrade_request(&req) {
+                let scheme = if req.uri().scheme().unwrap_or(&http::uri::Scheme::HTTP)
+                    == &http::uri::Scheme::HTTP
+                {
+                    "ws"
+                } else {
+                    "wss"
+                };
 
-            let fut = async move {
-                match websocket.await {
-                    Ok(ws) => {
-                        if let Err(e) = self.handle_websocket(ws, uri).await {
-                            error!("Failed to handle websocket: {}", e);
+                let uri = http::uri::Builder::new()
+                    .scheme(scheme)
+                    .authority(
+                        req.uri()
+                            .authority()
+                            .expect("Authority not included in request")
+                            .to_owned(),
+                    )
+                    .path_and_query(
+                        req.uri()
+                            .path_and_query()
+                            .unwrap_or(&PathAndQuery::from_static("/"))
+                            .to_owned(),
+                    )
+                    .build()
+                    .expect("Failed to build URI for websocket connection");
+
+                let span = span_from_request!("websocket", req, self.client_addr);
+                let (res, websocket) =
+                    hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
+
+                let fut = async move {
+                    match websocket.await {
+                        Ok(ws) => {
+                            if let Err(e) = self.handle_websocket(ws, uri).await {
+                                error!("Failed to handle websocket: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to upgrade to websocket: {}", e);
                         }
                     }
-                    Err(e) => {
-                        error!("Failed to upgrade to websocket: {}", e);
-                    }
-                }
-            };
+                };
 
-            spawn_with_trace(span, fut);
-            return Ok(res);
-        }
+                spawn_with_trace(span, fut);
+                return Ok(res);
+            }
 
-        let res = self.client.request(req).await?;
+            let res = self.client.request(req).await?;
+            Ok(self.http_handler.handle_response(&ctx, res).await)
+        };
 
-        Ok(self.http_handler.handle_response(&ctx, res).await)
+        trace_future(span, fut).await
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
