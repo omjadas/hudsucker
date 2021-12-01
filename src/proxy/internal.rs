@@ -129,16 +129,24 @@ where
                 .build()
                 .expect("Failed to build URI for websocket connection");
 
+            let span = span_from_request!("websocket", req, self.client_addr);
             let (res, websocket) =
                 hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
 
-            tokio::spawn(async move {
-                let server_socket = websocket.await.unwrap_or_else(|_| {
-                    panic!("Failed to upgrade websocket connection for {}", uri)
-                });
-                self.handle_websocket(server_socket, uri).await;
-            });
+            let fut = async move {
+                match websocket.await {
+                    Ok(ws) => {
+                        if let Err(e) = self.handle_websocket(ws, uri).await {
+                            error!("Failed to handle websocket: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to upgrade to websocket: {}", e);
+                    }
+                }
+            };
 
+            spawn_with_trace(span, fut);
             return Ok(res);
         }
 
@@ -148,7 +156,7 @@ where
     }
 
     async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let span = span_from_request!("process_connect", &req, self.client_addr);
+        let span = span_from_request!("process_connect", req, self.client_addr);
         let authority = req
             .uri()
             .authority()
@@ -159,10 +167,13 @@ where
             match hyper::upgrade::on(req).await {
                 Ok(mut upgraded) => {
                     let mut buffer = [0; 4];
-                    let bytes_read = upgraded
-                        .read(&mut buffer)
-                        .await
-                        .expect("Failed to read from upgraded connection");
+                    let bytes_read = match upgraded.read(&mut buffer).await {
+                        Ok(bytes_read) => bytes_read,
+                        Err(e) => {
+                            error!("Failed to read from upgraded connection: {}", e);
+                            return;
+                        }
+                    };
 
                     let upgraded = Rewind::new_buffered(
                         upgraded,
@@ -175,14 +186,17 @@ where
                         }
                     } else {
                         let server_config = self.ca.gen_server_config(&authority).await;
-                        let stream = TlsAcceptor::from(server_config)
-                            .accept(upgraded)
-                            .await
-                            .expect("Failed to establish TLS connection with client");
+                        let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
+                            Ok(stream) => stream,
+                            Err(e) => {
+                                error!("Failed to establish TLS connection: {}", e);
+                                return;
+                            }
+                        };
 
                         if let Err(e) = self.serve_https(stream).await {
                             if !e.to_string().starts_with("error shutting down connection") {
-                                error!("https connect error: {}", e);
+                                error!("HTTPS connect error: {}", e);
                             }
                         }
                     }
@@ -195,11 +209,12 @@ where
         Ok(Response::new(Body::empty()))
     }
 
-    async fn handle_websocket(self, server_socket: WebSocketStream<Upgraded>, uri: Uri) {
-        let (client_socket, _) = connect_async(&uri)
-            .await
-            .unwrap_or_else(|_| panic!("Failed to open websocket connection to {}", uri));
-
+    async fn handle_websocket(
+        self,
+        server_socket: WebSocketStream<Upgraded>,
+        uri: Uri,
+    ) -> Result<(), tungstenite::Error> {
+        let (client_socket, _) = connect_async(&uri).await?;
         let (server_sink, server_stream) = server_socket.split();
         let (client_sink, client_stream) = client_socket.split();
 
@@ -224,6 +239,8 @@ where
             self.client_addr,
             uri,
         );
+
+        Ok(())
     }
 
     async fn serve_websocket(self, stream: Rewind<Upgraded>) -> Result<(), hyper::Error> {
