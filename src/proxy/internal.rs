@@ -186,7 +186,7 @@ where
 
                     if bytes_read == 4 && buffer == *b"GET " {
                         if let Err(e) = self.serve_websocket(upgraded).await {
-                            error!("websocket connect error: {}", e);
+                            error!("Websocket connect error: {}", e);
                         }
                     } else {
                         let server_config = self.ca.gen_server_config(&authority).await;
@@ -205,7 +205,7 @@ where
                         }
                     }
                 }
-                Err(e) => error!("upgrade error: {}", e),
+                Err(e) => error!("Upgrade error: {}", e),
             };
         };
 
@@ -345,11 +345,11 @@ fn spawn_message_forwarder(
 
                     match sink.send(message).await {
                         Err(tungstenite::Error::ConnectionClosed) => (),
-                        Err(e) => error!("websocket send error: {}", e),
+                        Err(e) => error!("Websocket send error: {}", e),
                         _ => (),
                     }
                 }
-                Err(e) => error!("websocket message error: {}", e),
+                Err(e) => error!("Websocket message error: {}", e),
             }
         }
     };
