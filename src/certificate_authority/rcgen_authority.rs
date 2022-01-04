@@ -29,7 +29,7 @@ impl RcgenAuthority {
     pub fn new(
         private_key: rustls::PrivateKey,
         ca_cert: rustls::Certificate,
-        cache_size: usize,
+        cache_size: u64,
     ) -> Result<RcgenAuthority, Error> {
         let ca = Self {
             private_key,

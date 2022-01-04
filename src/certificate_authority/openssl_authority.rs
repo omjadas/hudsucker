@@ -29,7 +29,7 @@ pub struct OpensslAuthority {
 
 impl OpensslAuthority {
     /// Creates a new openssl authority.
-    pub fn new(pkey: PKey<Private>, ca_cert: X509, hash: MessageDigest, cache_size: usize) -> Self {
+    pub fn new(pkey: PKey<Private>, ca_cert: X509, hash: MessageDigest, cache_size: u64) -> Self {
         let private_key = rustls::PrivateKey(
             pkey.private_key_to_der()
                 .expect("Failed to encode private key"),
