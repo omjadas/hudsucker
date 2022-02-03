@@ -29,7 +29,7 @@ hyper-tls = { version = "0.5", optional = true }
 hyper-tungstenite = "0.5"
 moka = { version = "0.7", features = ["future"], optional = true }
 openssl = { version = "0.10", optional = true }
-rcgen = { version = "0.8", features = ["x509-parser"], optional = true }
+rcgen = { version = "0.9", features = ["x509-parser"], optional = true }
 thiserror = "1"
 tokio = { version = "1", features = ["io-util", "rt"] }
 tokio-rustls = "0.23"
