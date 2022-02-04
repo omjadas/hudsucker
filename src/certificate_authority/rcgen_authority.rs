@@ -1,11 +1,11 @@
 use crate::certificate_authority::CertificateAuthority;
 use crate::Error;
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
 use http::uri::Authority;
 use moka::future::Cache;
 use rcgen::{KeyPair, RcgenError, SanType};
 use std::sync::Arc;
+use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{self, ServerConfig};
 
 /// Issues certificates for use when communicating with clients.
@@ -42,7 +42,7 @@ impl RcgenAuthority {
     }
 
     fn gen_cert(&self, authority: &Authority) -> rustls::Certificate {
-        let now = Utc::now();
+        let now = OffsetDateTime::now_utc();
         let mut params = rcgen::CertificateParams::default();
         params.not_before = now;
         params.not_after = now + Duration::weeks(52);
