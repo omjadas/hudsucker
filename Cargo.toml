@@ -38,7 +38,7 @@ tokio-util = { version = "0.6", features = ["io"] }
 tracing = { version = "0.1", features = ["log"] }
 
 [dev-dependencies]
-rustls-pemfile = "0.2"
+rustls-pemfile = "0.3"
 tokio = { version = "1", features = ["full"] }
 tracing-subscriber = "0.3"
 
