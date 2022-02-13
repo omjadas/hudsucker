@@ -66,7 +66,7 @@ where
             }
         });
 
-        Server::bind(&self.listen_addr)
+        Server::try_bind(&self.listen_addr)?
             .http1_preserve_header_case(true)
             .http1_title_case_headers(true)
             .serve(make_service)
