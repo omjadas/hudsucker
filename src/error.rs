@@ -3,6 +3,7 @@ use rcgen::RcgenError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[cfg(feature = "rcgen-certs")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rcgen-certs")))]
