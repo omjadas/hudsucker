@@ -7,17 +7,26 @@ use hyper::client::{connect::Connect, Client, HttpConnector};
 use hyper_rustls::{HttpsConnector as RustlsConnector, HttpsConnectorBuilder};
 #[cfg(feature = "native-tls-client")]
 use hyper_tls::HttpsConnector as NativeTlsConnector;
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{SocketAddr, TcpListener},
+    sync::Arc,
+};
 
 /// A builder for creating a proxy.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ProxyBuilder<T>(T);
 
-/// Builder state that needs an address.
+/// Builder state that needs either an address or a TCP listener.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct WantsAddr(());
+pub struct WantsAddrOrListener(());
 
-impl ProxyBuilder<WantsAddr> {
+#[derive(Debug)]
+pub(crate) enum AddrOrListener {
+    Addr(SocketAddr),
+    Listener(TcpListener),
+}
+
+impl ProxyBuilder<WantsAddrOrListener> {
     /// Create a new ProxyBuilder.
     pub fn new() -> Self {
         Self::default()
@@ -25,20 +34,29 @@ impl ProxyBuilder<WantsAddr> {
 
     /// Set the address to listen on.
     pub fn with_addr(self, addr: SocketAddr) -> ProxyBuilder<WantsClient> {
-        ProxyBuilder(WantsClient { addr })
+        ProxyBuilder(WantsClient {
+            addr_or_listener: AddrOrListener::Addr(addr),
+        })
+    }
+
+    /// Set a listener to use for the proxy server.
+    pub fn with_listener(self, listener: TcpListener) -> ProxyBuilder<WantsClient> {
+        ProxyBuilder(WantsClient {
+            addr_or_listener: AddrOrListener::Listener(listener),
+        })
     }
 }
 
-impl Default for ProxyBuilder<WantsAddr> {
+impl Default for ProxyBuilder<WantsAddrOrListener> {
     fn default() -> Self {
-        ProxyBuilder(WantsAddr(()))
+        ProxyBuilder(WantsAddrOrListener(()))
     }
 }
 
 /// Builder state that needs a client.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct WantsClient {
-    addr: SocketAddr,
+    addr_or_listener: AddrOrListener,
 }
 
 impl ProxyBuilder<WantsClient> {
@@ -57,7 +75,7 @@ impl ProxyBuilder<WantsClient> {
         let https = https.build();
 
         ProxyBuilder(WantsCa {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
@@ -74,7 +92,7 @@ impl ProxyBuilder<WantsClient> {
         let https = NativeTlsConnector::new();
 
         ProxyBuilder(WantsCa {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
@@ -88,7 +106,7 @@ impl ProxyBuilder<WantsClient> {
         C: Connect + Clone + Send + Sync + 'static,
     {
         ProxyBuilder(WantsCa {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client,
         })
     }
@@ -100,7 +118,7 @@ pub struct WantsCa<C>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    addr: SocketAddr,
+    addr_or_listener: AddrOrListener,
     client: Client<C>,
 }
 
@@ -115,7 +133,7 @@ where
     ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHttpHandler, NoopMessageHandler, NoopMessageHandler>>
     {
         ProxyBuilder(WantsHandlers {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca,
             http_handler: NoopHttpHandler {},
@@ -135,7 +153,7 @@ where
     M1: MessageHandler,
     M2: MessageHandler,
 {
-    addr: SocketAddr,
+    addr_or_listener: AddrOrListener,
     client: Client<C>,
     ca: CA,
     http_handler: H,
@@ -157,7 +175,7 @@ where
         http_handler: H2,
     ) -> ProxyBuilder<WantsHandlers<C, CA, H2, M1, M2>> {
         ProxyBuilder(WantsHandlers {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca: self.0.ca,
             http_handler,
@@ -172,7 +190,7 @@ where
         incoming_message_handler: M,
     ) -> ProxyBuilder<WantsHandlers<C, CA, H, M, M2>> {
         ProxyBuilder(WantsHandlers {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca: self.0.ca,
             http_handler: self.0.http_handler,
@@ -187,7 +205,7 @@ where
         outgoing_message_handler: M,
     ) -> ProxyBuilder<WantsHandlers<C, CA, H, M1, M>> {
         ProxyBuilder(WantsHandlers {
-            addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca: self.0.ca,
             http_handler: self.0.http_handler,
@@ -199,7 +217,7 @@ where
     /// Build the proxy.
     pub fn build(self) -> Proxy<C, CA, H, M1, M2> {
         Proxy {
-            listen_addr: self.0.addr,
+            addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca: Arc::new(self.0.ca),
             http_handler: self.0.http_handler,
