@@ -3,10 +3,12 @@ use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use openssl::{
-    asn1::Asn1Time,
+    asn1::{Asn1Time, Asn1Integer},
+    bn::BigNum,
     error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, Private},
+    rand,
     x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
 };
 use std::sync::Arc;
@@ -61,6 +63,14 @@ impl OpensslAuthority {
             .dns(authority.host())
             .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
         x509_builder.append_extension(alternative_name)?;
+        
+        let mut rand_serial_number = [0; 16];
+        rand::rand_bytes(&mut rand_serial_number)?;
+        rand_serial_number[0] &= 0b0111_1111; // MSB should be 0 to be considered positive
+
+        let bignum_serial_number = BigNum::from_slice(&rand_serial_number)?;
+        let asn1_serial_number = Asn1Integer::from_bn(&bignum_serial_number)?;
+        x509_builder.set_serial_number(&asn1_serial_number)?;
 
         x509_builder.sign(&self.pkey, self.hash)?;
         let x509 = x509_builder.build();
