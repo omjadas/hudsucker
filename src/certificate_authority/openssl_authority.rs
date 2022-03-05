@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use openssl::{
-    asn1::{Asn1Time, Asn1Integer},
+    asn1::{Asn1Integer, Asn1Time},
     bn::BigNum,
     error::ErrorStack,
     hash::MessageDigest,
@@ -63,7 +63,7 @@ impl OpensslAuthority {
             .dns(authority.host())
             .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
         x509_builder.append_extension(alternative_name)?;
-        
+
         let mut rand_serial_number = [0; 16];
         rand::rand_bytes(&mut rand_serial_number)?;
         rand_serial_number[0] &= 0b0111_1111; // MSB should be 0 to be considered positive
