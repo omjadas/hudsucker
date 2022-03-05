@@ -3,6 +3,7 @@ use crate::Error;
 use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
+use rand::{thread_rng, Rng};
 use rcgen::{KeyPair, RcgenError, SanType};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
@@ -44,6 +45,7 @@ impl RcgenAuthority {
     fn gen_cert(&self, authority: &Authority) -> rustls::Certificate {
         let now = OffsetDateTime::now_utc();
         let mut params = rcgen::CertificateParams::default();
+        params.serial_number = Some(thread_rng().gen::<u64>());
         params.not_before = now;
         params.not_after = now + Duration::weeks(52);
         params
