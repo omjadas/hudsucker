@@ -66,7 +66,7 @@ impl OpensslAuthority {
         
         let mut rand_serial_number = [0; 16];
         rand::rand_bytes(&mut rand_serial_number)?;
-        rand_serial_number[0] &= 0b0111_111; // MSB should be 0 to be considered positive
+        rand_serial_number[0] &= 0b0111_1111; // MSB should be 0 to be considered positive
 
         let bignum_serial_number = BigNum::from_slice(&rand_serial_number)?;
         let asn1_serial_number = Asn1Integer::from_bn(&bignum_serial_number)?;
