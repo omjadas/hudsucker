@@ -64,13 +64,12 @@ impl OpensslAuthority {
             .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
         x509_builder.append_extension(alternative_name)?;
 
-        let mut rand_serial_number = [0; 16];
-        rand::rand_bytes(&mut rand_serial_number)?;
-        rand_serial_number[0] &= 0b0111_1111; // MSB should be 0 to be considered positive
+        let mut serial_number = [0; 16];
+        rand::rand_bytes(&mut serial_number)?;
 
-        let bignum_serial_number = BigNum::from_slice(&rand_serial_number)?;
-        let asn1_serial_number = Asn1Integer::from_bn(&bignum_serial_number)?;
-        x509_builder.set_serial_number(&asn1_serial_number)?;
+        let serial_number = BigNum::from_slice(&serial_number)?;
+        let serial_number = Asn1Integer::from_bn(&serial_number)?;
+        x509_builder.set_serial_number(&serial_number)?;
 
         x509_builder.sign(&self.pkey, self.hash)?;
         let x509 = x509_builder.build();
