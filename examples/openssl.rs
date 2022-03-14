@@ -39,7 +39,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
-    let ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");
+    let ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.cer");
     let private_key =
         PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
     let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");

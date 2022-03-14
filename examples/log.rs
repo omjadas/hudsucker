@@ -39,7 +39,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
-    let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.pem");
+    let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.cer");
     let private_key = rustls::PrivateKey(
         pemfile::pkcs8_private_keys(&mut private_key_bytes)
             .expect("Failed to parse private key")
