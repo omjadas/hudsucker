@@ -13,6 +13,10 @@ pub use openssl_authority::*;
 #[cfg(feature = "rcgen-certs")]
 pub use rcgen_authority::*;
 
+const TTL_DAYS: u64 = 365;
+const TTL_SECS: u64 = TTL_DAYS * 24 * 60 * 60;
+const CACHE_TTL: u64 = TTL_SECS / 2;
+
 /// Issues certificates for use when communicating with clients.
 ///
 /// Clients should be configured to either trust the provided root certificate, or to ignore

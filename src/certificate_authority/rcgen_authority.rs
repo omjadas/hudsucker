@@ -1,5 +1,7 @@
-use crate::certificate_authority::CertificateAuthority;
-use crate::Error;
+use crate::{
+    certificate_authority::{CertificateAuthority, CACHE_TTL, TTL_DAYS},
+    Error,
+};
 use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
@@ -35,7 +37,10 @@ impl RcgenAuthority {
         let ca = Self {
             private_key,
             ca_cert,
-            cache: Cache::new(cache_size),
+            cache: Cache::builder()
+                .max_capacity(cache_size)
+                .time_to_live(std::time::Duration::from_secs(CACHE_TTL))
+                .build(),
         };
 
         ca.validate()?;
@@ -47,7 +52,7 @@ impl RcgenAuthority {
         let mut params = rcgen::CertificateParams::default();
         params.serial_number = Some(thread_rng().gen::<u64>());
         params.not_before = now;
-        params.not_after = now + Duration::weeks(52);
+        params.not_after = now + Duration::days(TTL_DAYS as i64);
         params
             .subject_alt_names
             .push(SanType::DnsName(authority.host().to_string()));

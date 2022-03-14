@@ -1,4 +1,4 @@
-use crate::certificate_authority::CertificateAuthority;
+use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, TTL_DAYS};
 use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
@@ -11,7 +11,7 @@ use openssl::{
     rand,
     x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio_rustls::rustls::{self, ServerConfig};
 
 /// Issues certificates for use when communicating with clients.
@@ -42,7 +42,10 @@ impl OpensslAuthority {
             private_key,
             ca_cert,
             hash,
-            cache: Cache::new(cache_size),
+            cache: Cache::builder()
+                .max_capacity(cache_size)
+                .time_to_live(Duration::from_secs(CACHE_TTL))
+                .build(),
         }
     }
 
@@ -55,7 +58,7 @@ impl OpensslAuthority {
         x509_builder.set_subject_name(&name)?;
         x509_builder.set_version(2)?;
         x509_builder.set_not_before(Asn1Time::days_from_now(0)?.as_ref())?;
-        x509_builder.set_not_after(Asn1Time::days_from_now(365)?.as_ref())?;
+        x509_builder.set_not_after(Asn1Time::days_from_now(TTL_DAYS as u32)?.as_ref())?;
         x509_builder.set_pubkey(&self.pkey)?;
         x509_builder.set_issuer_name(self.ca_cert.subject_name())?;
 
