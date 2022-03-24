@@ -1,22 +1,22 @@
-name: Build
+on: [push]
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+name: Build
 
 permissions:
   checks: write
   contents: read
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly]
+        toolchain:
+          - stable
+          - beta
+          - nightly
 
     steps:
       - uses: actions/checkout@v3
@@ -31,14 +31,42 @@ jobs:
         with:
           command: build
           args: --release --all-targets --all-features
-      - name: cargo fmt
+      - name: cargo test
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: --all -- --check
+          command: test
+          args: --release --all-features
+
+  clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: clippy
+      - uses: Swatinem/rust-cache@v1.3.0
       - name: cargo clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
-          name: clippy-${{ matrix.toolchain }}
+          name: clippy-report
+
+  fmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt
+      - name: cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
