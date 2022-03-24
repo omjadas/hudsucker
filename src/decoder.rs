@@ -73,7 +73,7 @@ fn extract_encodings(headers: &mut HeaderMap<HeaderValue>) -> Result<Vec<String>
     for val in headers.get_all(CONTENT_ENCODING) {
         match val.to_str() {
             Ok(val) => {
-                encodings.extend(val.split(',').map(|v| String::from(v.trim())));
+                encodings.extend(val.split(',').map(|v| v.trim().to_owned()));
             }
             Err(_) => return Err(Error::Decode),
         }
@@ -137,4 +137,160 @@ pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
     }
 
     Ok(Response::from_parts(parts, decode_body(encodings, body)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod extract_encodings {
+        use super::*;
+
+        #[test]
+        fn no_headers() {
+            let mut headers = HeaderMap::new();
+
+            assert_eq!(extract_encodings(&mut headers).unwrap().len(), 0);
+        }
+
+        #[test]
+        fn single_header_single_value() {
+            let mut headers = HeaderMap::new();
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+
+            assert_eq!(extract_encodings(&mut headers).unwrap(), vec!["gzip"]);
+        }
+
+        #[test]
+        fn single_header_multiple_values() {
+            let mut headers = HeaderMap::new();
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip, deflate"));
+
+            assert_eq!(
+                extract_encodings(&mut headers).unwrap(),
+                vec!["gzip", "deflate"]
+            );
+        }
+
+        #[test]
+        fn multiple_headers_single_value() {
+            let mut headers = HeaderMap::new();
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("deflate"));
+
+            assert_eq!(
+                extract_encodings(&mut headers).unwrap(),
+                vec!["gzip", "deflate"]
+            );
+        }
+
+        #[test]
+        fn multiple_headers_multiple_values() {
+            let mut headers = HeaderMap::new();
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip, deflate"));
+            headers.append(CONTENT_ENCODING, HeaderValue::from_static("br, zstd"));
+
+            assert_eq!(
+                extract_encodings(&mut headers).unwrap(),
+                vec!["gzip", "deflate", "br", "zstd"]
+            );
+        }
+    }
+
+    mod decode_body {
+        use super::*;
+        use async_compression::tokio::bufread::{BrotliEncoder, GzipEncoder};
+        use hyper::body::to_bytes;
+
+        #[tokio::test]
+        async fn no_encodings() {
+            let content = "hello, world";
+            let body = Body::from(content);
+
+            assert_eq!(
+                &to_bytes(decode_body(vec![], body).unwrap()).await.unwrap()[..],
+                content.as_bytes()
+            );
+        }
+
+        #[tokio::test]
+        async fn single_encoding() {
+            let content = b"hello, world";
+            let encoder = GzipEncoder::new(&content[..]);
+            let body = Body::wrap_stream(ReaderStream::new(encoder));
+
+            assert_eq!(
+                &to_bytes(decode_body(vec!["gzip".to_owned()], body).unwrap())
+                    .await
+                    .unwrap()[..],
+                content
+            );
+        }
+
+        #[tokio::test]
+        async fn multiple_encodings() {
+            let content = b"hello, world";
+            let encoder = GzipEncoder::new(&content[..]);
+            let encoder = BrotliEncoder::new(BufReader::new(encoder));
+            let body = Body::wrap_stream(ReaderStream::new(encoder));
+
+            assert_eq!(
+                &to_bytes(decode_body(vec!["gzip".to_owned(), "br".to_owned()], body).unwrap())
+                    .await
+                    .unwrap()[..],
+                content
+            );
+        }
+
+        #[test]
+        fn invalid_encoding() {
+            let body = Body::empty();
+
+            assert!(decode_body(vec!["invalid".to_owned()], body).is_err());
+        }
+    }
+
+    mod decode_request {
+        use super::*;
+        use async_compression::tokio::bufread::GzipEncoder;
+        use hyper::body::to_bytes;
+
+        #[tokio::test]
+        async fn decodes_request() {
+            let content = b"hello, world";
+            let encoder = GzipEncoder::new(&content[..]);
+            let req = Request::builder()
+                .header(CONTENT_LENGTH, 123)
+                .header(CONTENT_ENCODING, "gzip")
+                .body(Body::wrap_stream(ReaderStream::new(encoder)))
+                .unwrap();
+
+            let req = decode_request(req).unwrap();
+
+            assert!(!req.headers().contains_key(CONTENT_LENGTH));
+            assert_eq!(&to_bytes(req.into_body()).await.unwrap()[..], content);
+        }
+    }
+
+    mod decode_response {
+        use super::*;
+        use async_compression::tokio::bufread::GzipEncoder;
+        use hyper::body::to_bytes;
+
+        #[tokio::test]
+        async fn decodes_response() {
+            let content = b"hello, world";
+            let encoder = GzipEncoder::new(&content[..]);
+            let res = Response::builder()
+                .header(CONTENT_LENGTH, 123)
+                .header(CONTENT_ENCODING, "gzip")
+                .body(Body::wrap_stream(ReaderStream::new(encoder)))
+                .unwrap();
+
+            let res = decode_response(res).unwrap();
+
+            assert!(!res.headers().contains_key(CONTENT_LENGTH));
+            assert_eq!(&to_bytes(res.into_body()).await.unwrap()[..], content);
+        }
+    }
 }
