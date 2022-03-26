@@ -67,7 +67,7 @@ where
 {
     fn clone(&self) -> Self {
         InternalProxy {
-            ca: self.ca.clone(),
+            ca: Arc::clone(&self.ca),
             client: self.client.clone(),
             http_handler: self.http_handler.clone(),
             incoming_message_handler: self.incoming_message_handler.clone(),
@@ -120,13 +120,13 @@ where
                         req.uri()
                             .authority()
                             .expect("Authority not included in request")
-                            .to_owned(),
+                            .clone(),
                     )
                     .path_and_query(
                         req.uri()
                             .path_and_query()
                             .unwrap_or(&PathAndQuery::from_static("/"))
-                            .to_owned(),
+                            .clone(),
                     )
                     .build()
                     .expect("Failed to build URI for websocket connection");
@@ -249,27 +249,30 @@ where
 
     async fn serve_websocket(self, stream: Rewind<Upgraded>) -> Result<(), hyper::Error> {
         let service = service_fn(|req| {
-            let authority = req
-                .headers()
+            let (mut parts, body) = req.into_parts();
+
+            let authority = parts
+                .headers
                 .get(http::header::HOST)
                 .expect("Host is a required header")
                 .to_str()
                 .expect("Failed to convert host to str");
 
-            let uri = http::uri::Builder::new()
-                .scheme(http::uri::Scheme::HTTP)
-                .authority(authority)
-                .path_and_query(
-                    req.uri()
-                        .path_and_query()
-                        .unwrap_or(&PathAndQuery::from_static("/"))
-                        .to_owned(),
-                )
-                .build()
-                .expect("Failed to build URI");
+            parts.uri = {
+                let parts = parts.uri.into_parts();
 
-            let (mut parts, body) = req.into_parts();
-            parts.uri = uri;
+                http::uri::Builder::new()
+                    .scheme(http::uri::Scheme::HTTP)
+                    .authority(authority)
+                    .path_and_query(
+                        parts
+                            .path_and_query
+                            .unwrap_or_else(|| PathAndQuery::from_static("/")),
+                    )
+                    .build()
+                    .expect("Failed to build URI")
+            };
+
             let req = Request::from_parts(parts, body);
             self.clone().process_request(req)
         });
@@ -286,28 +289,31 @@ where
     ) -> Result<(), hyper::Error> {
         let service = service_fn(|mut req| {
             if req.version() == http::Version::HTTP_10 || req.version() == http::Version::HTTP_11 {
-                let authority = req
-                    .headers()
+                let (mut parts, body) = req.into_parts();
+
+                let authority = parts
+                    .headers
                     .get(http::header::HOST)
                     .expect("Host is a required header")
                     .to_str()
                     .expect("Failed to convert host to str");
 
-                let uri = http::uri::Builder::new()
-                    .scheme(http::uri::Scheme::HTTPS)
-                    .authority(authority)
-                    .path_and_query(
-                        req.uri()
-                            .path_and_query()
-                            .unwrap_or(&PathAndQuery::from_static("/"))
-                            .to_owned(),
-                    )
-                    .build()
-                    .expect("Failed to build URI");
+                parts.uri = {
+                    let parts = parts.uri.into_parts();
 
-                let (mut parts, body) = req.into_parts();
-                parts.uri = uri;
-                req = Request::from_parts(parts, body)
+                    http::uri::Builder::new()
+                        .scheme(http::uri::Scheme::HTTPS)
+                        .authority(authority)
+                        .path_and_query(
+                            parts
+                                .path_and_query
+                                .unwrap_or_else(|| PathAndQuery::from_static("/")),
+                        )
+                        .build()
+                        .expect("Failed to build URI")
+                };
+
+                req = Request::from_parts(parts, body);
             };
 
             self.clone().process_request(req)
