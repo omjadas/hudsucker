@@ -2,6 +2,7 @@ use hudsucker::{
     async_trait::async_trait,
     certificate_authority::RcgenAuthority,
     hyper::{Body, Request, Response},
+    tungstenite::Message,
     *,
 };
 use rustls_pemfile as pemfile;
@@ -34,6 +35,17 @@ impl HttpHandler for LogHandler {
     }
 }
 
+#[derive(Clone)]
+struct WsLogHandler {}
+
+#[async_trait]
+impl MessageHandler for WsLogHandler {
+    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
+        println!("{:?}", msg);
+        Some(msg)
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -59,6 +71,8 @@ async fn main() {
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(LogHandler {})
+        .with_incoming_message_handler(WsLogHandler {})
+        .with_outgoing_message_handler(WsLogHandler {})
         .build();
 
     if let Err(e) = proxy.start(shutdown_signal()).await {
