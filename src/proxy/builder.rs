@@ -27,7 +27,7 @@ pub(crate) enum AddrOrListener {
 }
 
 impl ProxyBuilder<WantsAddrOrListener> {
-    /// Create a new ProxyBuilder.
+    /// Create a new [`ProxyBuilder`].
     pub fn new() -> Self {
         Self::default()
     }
@@ -136,9 +136,9 @@ where
             addr_or_listener: self.0.addr_or_listener,
             client: self.0.client,
             ca,
-            http_handler: NoopHttpHandler {},
-            incoming_message_handler: NoopMessageHandler {},
-            outgoing_message_handler: NoopMessageHandler {},
+            http_handler: NoopHttpHandler::new(),
+            incoming_message_handler: NoopMessageHandler::new(),
+            outgoing_message_handler: NoopMessageHandler::new(),
         })
     }
 }

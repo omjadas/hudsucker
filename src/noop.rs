@@ -7,11 +7,11 @@ use tokio_tungstenite::tungstenite::Message;
 ///
 /// When using this handler, requests and responses will not be modified.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct NoopHttpHandler {}
+pub struct NoopHttpHandler(());
 
 impl NoopHttpHandler {
-    pub fn new() -> Self {
-        NoopHttpHandler {}
+    pub(crate) fn new() -> Self {
+        NoopHttpHandler(())
     }
 }
 
@@ -34,11 +34,11 @@ impl HttpHandler for NoopHttpHandler {
 ///
 /// When using this handler, websocket messages will not be modified.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct NoopMessageHandler {}
+pub struct NoopMessageHandler(());
 
 impl NoopMessageHandler {
-    pub fn new() -> Self {
-        NoopMessageHandler {}
+    pub(crate) fn new() -> Self {
+        NoopMessageHandler(())
     }
 }
 

@@ -78,6 +78,6 @@ where
             .serve(make_service)
             .with_graceful_shutdown(shutdown_signal)
             .await
-            .map_err(|err| err.into())
+            .map_err(Into::into)
     }
 }
