@@ -95,8 +95,11 @@ fn decode_body(mut encodings: Vec<String>, body: Body) -> Result<Body, Error> {
 
 /// Decode the body of a request.
 ///
-/// This will fail if either of the `content-encoding` or `content-length` headers are unable to be
-/// parsed, or if one of the values specified in the `content-encoding` header is not supported.
+/// # Errors
+///
+/// This will return an error if either of the `content-encoding` or `content-length` headers are
+/// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
+/// supported.
 pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
     let (mut parts, body) = req.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;
@@ -118,8 +121,11 @@ pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
 
 /// Decode the body of a response.
 ///
-/// This will fail if either of the `content-encoding` or `content-length` headers are unable to be
-/// parsed, or if one of the values specified in the `content-encoding` header is not supported.
+/// # Errors
+///
+/// This will return an error if either of the `content-encoding` or `content-length` headers are
+/// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
+/// supported.
 pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
     let (mut parts, body) = res.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;

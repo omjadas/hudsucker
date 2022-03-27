@@ -27,8 +27,10 @@ pub struct RcgenAuthority {
 impl RcgenAuthority {
     /// Attempts to create a new rcgen authority.
     ///
-    /// This will fail if the provided key or certificate is invalid, or if the key does not match
-    /// the certificate.
+    /// # Errors
+    ///
+    /// This will return an error if the provided key or certificate is invalid, or if the key does
+    /// not match the certificate.
     pub fn new(
         private_key: rustls::PrivateKey,
         ca_cert: rustls::Certificate,
