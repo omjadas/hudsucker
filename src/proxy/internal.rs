@@ -386,3 +386,42 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     parts.version = http::Version::HTTP_11;
     Request::from_parts(parts, body)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod normalize_request {
+        use super::*;
+
+        #[test]
+        fn removes_host_header() {
+            let req = Request::builder()
+                .uri("http://example.com/")
+                .header(http::header::HOST, "example.com")
+                .body(())
+                .unwrap();
+
+            let req = normalize_request(req);
+
+            assert_eq!(req.headers().get(http::header::HOST), None);
+        }
+
+        #[test]
+        fn joins_cookies() {
+            let req = Request::builder()
+                .uri("http://example.com/")
+                .header(http::header::COOKIE, "foo=bar")
+                .header(http::header::COOKIE, "baz=qux")
+                .body(())
+                .unwrap();
+
+            let req = normalize_request(req);
+
+            assert_eq!(
+                req.headers().get(http::header::COOKIE),
+                Some(&"foo=bar; baz=qux".parse().unwrap())
+            );
+        }
+    }
+}
