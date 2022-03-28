@@ -9,7 +9,10 @@ use hyper::{
     Client, Method, Request, Response, Uri,
 };
 use std::{future::Future, net::SocketAddr, sync::Arc};
-use tokio::{io::AsyncReadExt, task::JoinHandle};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, AsyncWrite},
+    task::JoinHandle,
+};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
     connect_async,
@@ -185,10 +188,10 @@ where
                     );
 
                     if bytes_read == 4 && buffer == *b"GET " {
-                        if let Err(e) = self.serve_websocket(upgraded).await {
+                        if let Err(e) = self.serve_stream(upgraded, http::uri::Scheme::HTTP).await {
                             error!("Websocket connect error: {}", e);
                         }
-                    } else {
+                    } else if bytes_read >= 2 && buffer[..2] == *b"\x16\x03" {
                         let server_config = self.ca.gen_server_config(&authority).await;
                         let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
                             Ok(stream) => stream,
@@ -198,11 +201,16 @@ where
                             }
                         };
 
-                        if let Err(e) = self.serve_https(stream).await {
+                        if let Err(e) = self.serve_stream(stream, http::uri::Scheme::HTTPS).await {
                             if !e.to_string().starts_with("error shutting down connection") {
                                 error!("HTTPS connect error: {}", e);
                             }
                         }
+                    } else {
+                        error!(
+                            "Unknown protocol, read '{:02X?}' from upgraded connection",
+                            &buffer[..bytes_read]
+                        );
                     }
                 }
                 Err(e) => error!("Upgrade error: {}", e),
@@ -247,46 +255,10 @@ where
         Ok(())
     }
 
-    async fn serve_websocket(self, stream: Rewind<Upgraded>) -> Result<(), hyper::Error> {
-        let service = service_fn(|req| {
-            let (mut parts, body) = req.into_parts();
-
-            let authority = parts
-                .headers
-                .get(http::header::HOST)
-                .expect("Host is a required header")
-                .to_str()
-                .expect("Failed to convert host to str");
-
-            parts.uri = {
-                let parts = parts.uri.into_parts();
-
-                http::uri::Builder::new()
-                    .scheme(http::uri::Scheme::HTTP)
-                    .authority(authority)
-                    .path_and_query(
-                        parts
-                            .path_and_query
-                            .unwrap_or_else(|| PathAndQuery::from_static("/")),
-                    )
-                    .build()
-                    .expect("Failed to build URI")
-            };
-
-            let req = Request::from_parts(parts, body);
-            self.clone().process_request(req)
-        });
-
-        Http::new()
-            .serve_connection(stream, service)
-            .with_upgrades()
-            .await
-    }
-
-    async fn serve_https(
-        self,
-        stream: tokio_rustls::server::TlsStream<Rewind<Upgraded>>,
-    ) -> Result<(), hyper::Error> {
+    async fn serve_stream<I>(self, stream: I, scheme: http::uri::Scheme) -> Result<(), hyper::Error>
+    where
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
         let service = service_fn(|mut req| {
             if req.version() == http::Version::HTTP_10 || req.version() == http::Version::HTTP_11 {
                 let (mut parts, body) = req.into_parts();
@@ -302,7 +274,7 @@ where
                     let parts = parts.uri.into_parts();
 
                     http::uri::Builder::new()
-                        .scheme(http::uri::Scheme::HTTPS)
+                        .scheme(scheme.clone())
                         .authority(authority)
                         .path_and_query(
                             parts
