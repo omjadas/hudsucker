@@ -327,7 +327,17 @@ fn spawn_message_forwarder(
                         _ => (),
                     }
                 }
-                Err(e) => error!("Websocket message error: {}", e),
+                Err(e) => {
+                    error!("Websocket message error: {}", e);
+
+                    match sink.send(Message::Close(None)).await {
+                        Err(tungstenite::Error::ConnectionClosed) => (),
+                        Err(e) => error!("Websocket close error: {}", e),
+                        _ => (),
+                    };
+
+                    break;
+                }
             }
         }
     };
