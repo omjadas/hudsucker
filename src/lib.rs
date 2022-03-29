@@ -30,15 +30,16 @@ use tokio_tungstenite::tungstenite::Message;
 pub(crate) use rewind::Rewind;
 
 pub use async_trait;
-pub use decoder::{decode_request, decode_response};
-pub use error::Error;
 pub use hyper;
-pub use noop::*;
 #[cfg(feature = "openssl")]
 pub use openssl;
-pub use proxy::*;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite::tungstenite;
+
+pub use decoder::{decode_request, decode_response};
+pub use error::Error;
+pub use noop::*;
+pub use proxy::*;
 
 /// Enum representing either an HTTP request or response.
 #[derive(Debug)]

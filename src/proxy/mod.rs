@@ -3,7 +3,7 @@ mod internal;
 pub mod builder;
 
 use crate::{certificate_authority::CertificateAuthority, Error, HttpHandler, MessageHandler};
-use builder::AddrOrListener;
+use builder::AddrListenerServer;
 use hyper::{
     client::connect::Connect,
     server::conn::AddrStream,
@@ -25,7 +25,7 @@ where
     M1: MessageHandler,
     M2: MessageHandler,
 {
-    addr_or_listener: AddrOrListener,
+    als: AddrListenerServer,
     ca: Arc<CA>,
     client: Client<C>,
     http_handler: H,
@@ -69,14 +69,17 @@ where
             }
         });
 
-        let server_builder = match self.addr_or_listener {
-            AddrOrListener::Addr(addr) => Server::try_bind(&addr),
-            AddrOrListener::Listener(listener) => Server::from_tcp(listener),
-        }?;
+        let server_builder = match self.als {
+            AddrListenerServer::Addr(addr) => Server::try_bind(&addr)?
+                .http1_preserve_header_case(true)
+                .http1_title_case_headers(true),
+            AddrListenerServer::Listener(listener) => Server::from_tcp(listener)?
+                .http1_preserve_header_case(true)
+                .http1_title_case_headers(true),
+            AddrListenerServer::Server(server) => *server,
+        };
 
         server_builder
-            .http1_preserve_header_case(true)
-            .http1_title_case_headers(true)
             .serve(make_service)
             .with_graceful_shutdown(shutdown_signal)
             .await
