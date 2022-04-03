@@ -112,3 +112,44 @@ impl CertificateAuthority for OpensslAuthority {
         server_cfg
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_ca(cache_size: u64) -> OpensslAuthority {
+        let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
+        let ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+        let private_key =
+            PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
+        let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
+
+        OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), cache_size)
+    }
+
+    #[test]
+    fn unique_serial_numbers() {
+        let ca = init_ca(0);
+
+        let authority1 = Authority::from_static("example.com");
+        let authority2 = Authority::from_static("example2.com");
+
+        let c1 = ca.gen_cert(&authority1).unwrap();
+        let c2 = ca.gen_cert(&authority2).unwrap();
+        let c3 = ca.gen_cert(&authority1).unwrap();
+        let c4 = ca.gen_cert(&authority2).unwrap();
+
+        let (_, cert1) = x509_parser::parse_x509_certificate(&c1.0).unwrap();
+        let (_, cert2) = x509_parser::parse_x509_certificate(&c2.0).unwrap();
+
+        assert_ne!(cert1.raw_serial(), cert2.raw_serial());
+
+        let (_, cert3) = x509_parser::parse_x509_certificate(&c3.0).unwrap();
+        let (_, cert4) = x509_parser::parse_x509_certificate(&c4.0).unwrap();
+
+        assert_ne!(cert3.raw_serial(), cert4.raw_serial());
+
+        assert_ne!(cert1.raw_serial(), cert3.raw_serial());
+        assert_ne!(cert2.raw_serial(), cert4.raw_serial());
+    }
+}

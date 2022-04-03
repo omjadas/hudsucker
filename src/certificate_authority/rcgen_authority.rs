@@ -117,3 +117,70 @@ impl CertificateAuthority for RcgenAuthority {
         server_cfg
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustls_pemfile as pemfile;
+
+    fn init_ca(cache_size: u64) -> RcgenAuthority {
+        let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
+        let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+        let private_key = rustls::PrivateKey(
+            pemfile::pkcs8_private_keys(&mut private_key_bytes)
+                .expect("Failed to parse private key")
+                .remove(0),
+        );
+        let ca_cert = rustls::Certificate(
+            pemfile::certs(&mut ca_cert_bytes)
+                .expect("Failed to parse CA certificate")
+                .remove(0),
+        );
+
+        RcgenAuthority::new(private_key, ca_cert, cache_size).unwrap()
+    }
+
+    #[test]
+    fn error_for_invalid_key() {
+        let ca = init_ca(0);
+        let private_key = rustls::PrivateKey(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        let result = RcgenAuthority::new(private_key, ca.ca_cert, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn error_for_invalid_ca_cert() {
+        let ca = init_ca(0);
+        let ca_cert = rustls::Certificate(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        let result = RcgenAuthority::new(ca.private_key, ca_cert, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn unique_serial_numbers() {
+        let ca = init_ca(0);
+
+        let authority1 = Authority::from_static("example.com");
+        let authority2 = Authority::from_static("example2.com");
+
+        let c1 = ca.gen_cert(&authority1);
+        let c2 = ca.gen_cert(&authority2);
+        let c3 = ca.gen_cert(&authority1);
+        let c4 = ca.gen_cert(&authority2);
+
+        let (_, cert1) = x509_parser::parse_x509_certificate(&c1.0).unwrap();
+        let (_, cert2) = x509_parser::parse_x509_certificate(&c2.0).unwrap();
+
+        assert_ne!(cert1.raw_serial(), cert2.raw_serial());
+
+        let (_, cert3) = x509_parser::parse_x509_certificate(&c3.0).unwrap();
+        let (_, cert4) = x509_parser::parse_x509_certificate(&c4.0).unwrap();
+
+        assert_ne!(cert3.raw_serial(), cert4.raw_serial());
+
+        assert_ne!(cert1.raw_serial(), cert3.raw_serial());
+        assert_ne!(cert2.raw_serial(), cert4.raw_serial());
+    }
+}
