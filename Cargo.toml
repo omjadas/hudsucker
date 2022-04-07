@@ -47,11 +47,11 @@ x509-parser = "0.13.1"
 [features]
 default = ["rcgen-certs", "rustls-client"]
 full = ["http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
-http2 = ["hyper/http2", "hyper-rustls/http2"]
-native-tls-client = ["hyper-tls"]
-openssl-certs = ["openssl", "moka"]
-rcgen-certs = ["rcgen", "moka", "time", "rand"]
-rustls-client = ["hyper-rustls"]
+http2 = ["hyper/http2", "hyper-rustls?/http2"]
+native-tls-client = ["dep:hyper-tls"]
+openssl-certs = ["dep:openssl", "dep:moka"]
+rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
+rustls-client = ["dep:hyper-rustls"]
 
 [[example]]
 name = "openssl"

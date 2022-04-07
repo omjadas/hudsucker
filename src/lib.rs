@@ -31,7 +31,7 @@ pub(crate) use rewind::Rewind;
 
 pub use async_trait;
 pub use hyper;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "openssl-certs")]
 pub use openssl;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite::tungstenite;
