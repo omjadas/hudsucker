@@ -16,6 +16,52 @@ use std::{convert::Infallible, future::Future, sync::Arc};
 pub use builder::ProxyBuilder;
 
 /// A proxy server. This must be constructed with a [`ProxyBuilder`].
+///
+/// # Examples
+///
+/// ```rust
+/// use hudsucker::ProxyBuilder;
+/// # use hudsucker::certificate_authority::RcgenAuthority;
+/// # use rustls_pemfile as pemfile;
+/// # use tokio_rustls::rustls;
+/// #
+/// # #[tokio::main]
+/// # async fn main() {
+/// # let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
+/// # let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+/// # let private_key = rustls::PrivateKey(
+/// #     pemfile::pkcs8_private_keys(&mut private_key_bytes)
+/// #         .expect("Failed to parse private key")
+/// #         .remove(0),
+/// # );
+/// # let ca_cert = rustls::Certificate(
+/// #     pemfile::certs(&mut ca_cert_bytes)
+/// #         .expect("Failed to parse CA certificate")
+/// #         .remove(0),
+/// # );
+/// #
+/// # let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
+/// #     .expect("Failed to create Certificate Authority");
+///
+/// // let ca = ...;
+///
+/// let proxy = ProxyBuilder::new()
+///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
+///     .with_rustls_client()
+///     .with_ca(ca)
+///     .build();
+///
+/// let (stop, done) = tokio::sync::oneshot::channel();
+///
+/// tokio::spawn(proxy.start(async {
+///     done.await.unwrap_or_default();
+/// }));
+///
+/// // Do something else...
+///
+/// stop.send(()).unwrap();
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct Proxy<C, CA, H, M1, M2>
 where

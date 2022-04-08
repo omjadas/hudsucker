@@ -19,6 +19,22 @@ use tokio_rustls::rustls::{self, ServerConfig};
 /// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
 /// up to a max size that is provided when creating the authority. Certificates are generated using
 /// the `openssl` crate.
+///
+/// # Examples
+///
+/// ```rust
+/// use hudsucker::{
+///     certificate_authority::OpensslAuthority,
+///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509}
+/// };
+///
+/// let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
+/// let ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+/// let private_key = PKey::private_key_from_pem(private_key_bytes).unwrap();
+/// let ca_cert = X509::from_pem(ca_cert_bytes).unwrap();
+///
+/// let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "openssl-certs")))]
 #[derive(Clone)]
 pub struct OpensslAuthority {

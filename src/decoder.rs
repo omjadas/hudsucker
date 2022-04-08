@@ -100,6 +100,39 @@ fn decode_body(mut encodings: Vec<String>, body: Body) -> Result<Body, Error> {
 /// This will return an error if either of the `content-encoding` or `content-length` headers are
 /// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
 /// supported.
+///
+/// # Examples
+///
+/// ```rust
+/// use hudsucker::{
+///     async_trait::async_trait,
+///     decode_request,
+///     hyper::{Body, Request, Response},
+///     Error, HttpContext, HttpHandler, RequestOrResponse,
+/// };
+///
+/// #[derive(Clone)]
+/// pub struct MyHandler;
+///
+/// #[async_trait]
+/// impl HttpHandler for MyHandler {
+///     async fn handle_request(
+///         &mut self,
+///         _ctx: &HttpContext,
+///         req: Request<Body>,
+///     ) -> RequestOrResponse {
+///         let req = decode_request(req).unwrap();
+///
+///         // Do something with the request
+///
+///         RequestOrResponse::Request(req)
+///     }
+///
+///     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
+///         res
+///     }
+/// }
+/// ```
 pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
     let (mut parts, body) = req.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;
@@ -126,6 +159,38 @@ pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
 /// This will return an error if either of the `content-encoding` or `content-length` headers are
 /// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
 /// supported.
+///
+/// # Examples
+///
+/// ```rust
+/// use hudsucker::{
+///     async_trait::async_trait,
+///     decode_response,
+///     hyper::{Body, Request, Response},
+///     Error, HttpContext, HttpHandler, RequestOrResponse,
+/// };
+///
+/// #[derive(Clone)]
+/// pub struct MyHandler;
+///
+/// #[async_trait]
+/// impl HttpHandler for MyHandler {
+///     async fn handle_request(
+///         &mut self,
+///         _ctx: &HttpContext,
+///         req: Request<Body>,
+///     ) -> RequestOrResponse {
+///         RequestOrResponse::Request(req)
+///     }
+///
+///     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
+///         let res = decode_response(res).unwrap();
+///
+///         // Do something with the response
+///
+///         res
+///     }
+/// }
 pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
     let (mut parts, body) = res.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;

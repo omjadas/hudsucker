@@ -16,6 +16,28 @@ use tokio_rustls::rustls::{self, ServerConfig};
 /// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
 /// up to a max size that is provided when creating the authority. Certificates are generated using
 /// the `rcgen` crate.
+///
+/// # Examples
+///
+/// ```rust
+/// use hudsucker::{certificate_authority::RcgenAuthority, rustls};
+/// use rustls_pemfile as pemfile;
+///
+/// let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
+/// let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+/// let private_key = rustls::PrivateKey(
+///     pemfile::pkcs8_private_keys(&mut private_key_bytes)
+///         .unwrap()
+///         .remove(0),
+/// );
+/// let ca_cert = rustls::Certificate(
+///     pemfile::certs(&mut ca_cert_bytes)
+///         .unwrap()
+///         .remove(0),
+/// );
+///
+/// let ca = RcgenAuthority::new(private_key, ca_cert, 1_000).unwrap();
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "rcgen-certs")))]
 #[derive(Clone)]
 pub struct RcgenAuthority {
