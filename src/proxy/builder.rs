@@ -20,6 +20,8 @@ use std::{
 /// # Examples
 ///
 /// ```rust
+/// # #[cfg(all(feature = "rcgen-certs", feature = "rustls-client"))]
+/// # {
 /// use hudsucker::ProxyBuilder;
 /// # use hudsucker::certificate_authority::RcgenAuthority;
 /// # use rustls_pemfile as pemfile;
@@ -48,6 +50,7 @@ use std::{
 ///     .with_rustls_client()
 ///     .with_ca(ca)
 ///     .build();
+/// # }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ProxyBuilder<T>(T);

@@ -21,12 +21,14 @@ pub use builder::ProxyBuilder;
 ///
 /// ```rust
 /// use hudsucker::ProxyBuilder;
-/// # use hudsucker::certificate_authority::RcgenAuthority;
 /// # use rustls_pemfile as pemfile;
 /// # use tokio_rustls::rustls;
 /// #
+/// # #[cfg(all(feature = "rcgen-certs", feature = "rustls-client"))]
 /// # #[tokio::main]
 /// # async fn main() {
+/// # use hudsucker::certificate_authority::RcgenAuthority;
+/// #
 /// # let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
 /// # let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
 /// # let private_key = rustls::PrivateKey(
@@ -61,6 +63,9 @@ pub use builder::ProxyBuilder;
 ///
 /// stop.send(()).unwrap();
 /// # }
+/// #
+/// # #[cfg(not(all(feature = "rcgen-certs", feature = "rustls-client")))]
+/// # fn main() {}
 /// ```
 #[derive(Debug)]
 pub struct Proxy<C, CA, H, M1, M2>
