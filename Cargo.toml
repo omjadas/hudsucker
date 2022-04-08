@@ -54,5 +54,13 @@ rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
 rustls-client = ["dep:hyper-rustls"]
 
 [[example]]
+name = "log"
+required-features = ["rcgen-certs", "rustls-client"]
+
+[[example]]
+name = "noop"
+required-features = ["rcgen-certs", "rustls-client"]
+
+[[example]]
 name = "openssl"
 required-features = ["openssl-certs"]
