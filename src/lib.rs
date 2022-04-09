@@ -10,11 +10,13 @@
 //!
 //! - `full`: Enables all features.
 //! - `http2`: Enables HTTP/2 support.
+//! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers (enabled by default).
 //! - `native-tls-client`: Enables [`ProxyBuilder::with_native_tls_client`].
 //! - `openssl-certs`: Enables [`certificate_authority::OpensslAuthority`].
 //! - `rcgen-certs`: Enables [`certificate_authority::RcgenAuthority`] (enabled by default).
 //! - `rustls-client`: Enables [`ProxyBuilder::with_rustls_client`] (enabled by default).
 
+#[cfg(feature = "decoder")]
 mod decoder;
 mod error;
 mod noop;
@@ -36,6 +38,7 @@ pub use openssl;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite::tungstenite;
 
+#[cfg(feature = "decoder")]
 pub use decoder::{decode_request, decode_response};
 pub use error::Error;
 pub use noop::*;

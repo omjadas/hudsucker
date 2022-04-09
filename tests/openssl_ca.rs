@@ -32,7 +32,7 @@ async fn https() {
 
 #[tokio::test]
 async fn decodes_response() {
-    let (proxy_addr, _http_handler, stop_proxy) = common::start_proxy(build_ca()).unwrap();
+    let (proxy_addr, _, stop_proxy) = common::start_proxy(build_ca()).unwrap();
     let (server_addr, stop_server) = common::start_test_server().unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 

@@ -133,6 +133,7 @@ fn decode_body(mut encodings: Vec<String>, body: Body) -> Result<Body, Error> {
 ///     }
 /// }
 /// ```
+#[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
     let (mut parts, body) = req.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;
@@ -191,6 +192,7 @@ pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
 ///         res
 ///     }
 /// }
+#[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
     let (mut parts, body) = res.into_parts();
     let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;

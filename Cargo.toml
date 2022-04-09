@@ -17,7 +17,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"] }
+async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
 bytes = "1.0.0"
 futures = "0.3.11"
@@ -32,10 +32,10 @@ rand = { version = "0.8.0", optional = true }
 rcgen = { version = "0.9.0", features = ["x509-parser"], optional = true }
 thiserror = "1.0.23"
 time = { version = "0.3.1", optional = true }
-tokio = { version = "1.6.1", features = ["io-util", "rt"] }
+tokio = { version = "1.6.1", features = ["rt"] }
 tokio-rustls = "0.23.0"
 tokio-tungstenite = { version = "0.17.0", features = ["rustls-tls-webpki-roots"] }
-tokio-util = { version = "0.7.0", features = ["io"] }
+tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 
 [dev-dependencies]
@@ -46,9 +46,10 @@ tracing-subscriber = "0.3.0"
 x509-parser = "0.13.1"
 
 [features]
-default = ["rcgen-certs", "rustls-client"]
+default = ["decoder", "rcgen-certs", "rustls-client"]
 full = ["http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
 http2 = ["hyper/http2", "hyper-rustls?/http2"]
+decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
 native-tls-client = ["dep:hyper-tls"]
 openssl-certs = ["dep:openssl", "dep:moka"]
 rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
@@ -68,8 +69,8 @@ required-features = ["openssl-certs", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["openssl-certs", "rustls-client"]
+required-features = ["decoder", "openssl-certs", "rustls-client"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["rcgen-certs", "rustls-client"]
+required-features = ["decoder", "rcgen-certs", "rustls-client"]
