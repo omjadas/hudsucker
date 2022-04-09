@@ -39,6 +39,7 @@ tokio-util = { version = "0.7.0", features = ["io"] }
 tracing = { version = "0.1.21", features = ["log"] }
 
 [dev-dependencies]
+reqwest = "0.11.10"
 rustls-pemfile = "0.3.0"
 tokio = { version = "1.6.1", features = ["full"] }
 tracing-subscriber = "0.3.0"
@@ -63,4 +64,12 @@ required-features = ["rcgen-certs", "rustls-client"]
 
 [[example]]
 name = "openssl"
-required-features = ["openssl-certs"]
+required-features = ["openssl-certs", "rustls-client"]
+
+[[test]]
+name = "openssl_ca"
+required-features = ["openssl-certs", "rustls-client"]
+
+[[test]]
+name = "rcgen_ca"
+required-features = ["rcgen-certs", "rustls-client"]
