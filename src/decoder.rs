@@ -287,6 +287,19 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn identity_encoding() {
+            let content = "hello, world";
+            let body = Body::from(content);
+
+            assert_eq!(
+                &to_bytes(decode_body(vec!["identity".to_owned()], body).unwrap())
+                    .await
+                    .unwrap()[..],
+                content.as_bytes()
+            );
+        }
+
+        #[tokio::test]
         async fn single_encoding() {
             let content = b"hello, world";
             let encoder = GzipEncoder::new(&content[..]);
