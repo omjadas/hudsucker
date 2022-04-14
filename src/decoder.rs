@@ -42,8 +42,8 @@ impl Decoder {
         }
 
         let reader: Box<dyn AsyncBufRead + Send + Unpin> = match self {
-            Decoder::Body(body) => Box::new(StreamReader::new(IoStream(body.into_stream()))),
-            Decoder::Decoder(decoder) => Box::new(BufReader::new(decoder)),
+            Self::Body(body) => Box::new(StreamReader::new(IoStream(body.into_stream()))),
+            Self::Decoder(decoder) => Box::new(BufReader::new(decoder)),
         };
 
         let decoder: Box<dyn AsyncRead + Send + Unpin> = match encoding {
@@ -54,7 +54,7 @@ impl Decoder {
             _ => return Err(Error::Decode),
         };
 
-        Ok(Decoder::Decoder(decoder))
+        Ok(Self::Decoder(decoder))
     }
 }
 
