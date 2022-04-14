@@ -74,3 +74,8 @@ required-features = ["decoder", "openssl-certs", "rustls-client"]
 [[test]]
 name = "rcgen_ca"
 required-features = ["decoder", "rcgen-certs", "rustls-client"]
+
+[[bench]]
+name = "certificate_authorities"
+harness = false
+required-features = ["openssl-certs", "rcgen-certs"]
