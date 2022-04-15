@@ -65,7 +65,7 @@ fn rcgen_ca(c: &mut Criterion) {
     let authority = Authority::from_static("example.com");
     let runtime = runtime();
 
-    let mut group = c.benchmark_group("rcgen_ca");
+    let mut group = c.benchmark_group("rcgen ca");
     group.bench_function("with cache", |b| {
         b.to_async(&runtime)
             .iter(|| cache_ca.gen_server_config(black_box(&authority)))
@@ -83,7 +83,7 @@ fn openssl_ca(c: &mut Criterion) {
     let authority = Authority::from_static("example.com");
     let runtime = runtime();
 
-    let mut group = c.benchmark_group("openssl_ca");
+    let mut group = c.benchmark_group("openssl ca");
     group.bench_function("with cache", |b| {
         b.to_async(&runtime)
             .iter(|| cache_ca.gen_server_config(black_box(&authority)))

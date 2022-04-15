@@ -25,25 +25,31 @@ fn build_ca() -> RcgenAuthority {
 #[tokio::test]
 async fn https() {
     let (proxy_addr, http_handler, stop_proxy) = common::start_proxy(build_ca()).unwrap();
+    let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 
-    let res = client.get("https://echo.omjad.as/").send().await.unwrap();
+    let res = client
+        .get(format!("https://localhost:{}/hello", server_addr.port()))
+        .send()
+        .await
+        .unwrap();
 
     assert_eq!(res.status(), 200);
     assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 1);
     assert_eq!(http_handler.response_counter.load(Ordering::Relaxed), 1);
 
+    stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();
 }
 
 #[tokio::test]
 async fn decodes_response() {
     let (proxy_addr, _, stop_proxy) = common::start_proxy(build_ca()).unwrap();
-    let (server_addr, stop_server) = common::start_test_server().unwrap();
+    let (server_addr, stop_server) = common::start_http_server().unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 
     let res = client
-        .get(&format!("http://{}/hello/gzip", server_addr))
+        .get(format!("http://{}/hello/gzip", server_addr))
         .send()
         .await
         .unwrap();
@@ -58,11 +64,11 @@ async fn decodes_response() {
 #[tokio::test]
 async fn noop() {
     let (proxy_addr, stop_proxy) = common::start_noop_proxy(build_ca()).unwrap();
-    let (server_addr, stop_server) = common::start_test_server().unwrap();
+    let (server_addr, stop_server) = common::start_http_server().unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 
     let res = client
-        .get(&format!("http://{}/hello", server_addr))
+        .get(format!("http://{}/hello", server_addr))
         .send()
         .await
         .unwrap();

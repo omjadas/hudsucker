@@ -101,5 +101,5 @@ fn bench_decode_response(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_decode_request, bench_decode_response,);
+criterion_group!(benches, bench_decode_request, bench_decode_response);
 criterion_main!(benches);

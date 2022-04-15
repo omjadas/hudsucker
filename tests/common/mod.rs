@@ -4,6 +4,7 @@ use hudsucker::{
     certificate_authority::CertificateAuthority,
     decode_request, decode_response,
     hyper::{
+        client::connect::HttpConnector,
         header::CONTENT_ENCODING,
         server::conn::AddrStream,
         service::{make_service_fn, service_fn},
@@ -20,7 +21,9 @@ use std::{
         Arc,
     },
 };
+use tls_listener::TlsListener;
 use tokio::sync::oneshot::Sender;
+use tokio_native_tls::{self, native_tls};
 use tokio_util::io::ReaderStream;
 
 pub const HELLO_WORLD: &str = "Hello, World!";
@@ -40,7 +43,7 @@ async fn test_server(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     }
 }
 
-pub fn start_test_server() -> Result<(SocketAddr, Sender<()>), Box<dyn std::error::Error>> {
+pub fn start_http_server() -> Result<(SocketAddr, Sender<()>), Box<dyn std::error::Error>> {
     let make_svc = make_service_fn(|_conn: &AddrStream| async {
         Ok::<_, Infallible>(service_fn(test_server))
     });
@@ -59,6 +62,49 @@ pub fn start_test_server() -> Result<(SocketAddr, Sender<()>), Box<dyn std::erro
     Ok((addr, tx))
 }
 
+pub async fn start_https_server(
+    ca: impl CertificateAuthority,
+) -> Result<(SocketAddr, Sender<()>), Box<dyn std::error::Error>> {
+    let make_svc = make_service_fn(|_| async { Ok::<_, Infallible>(service_fn(test_server)) });
+
+    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
+    listener.set_nonblocking(true)?;
+    let addr = listener.local_addr()?;
+    let acceptor: tokio_rustls::TlsAcceptor = ca
+        .gen_server_config(&format!("localhost:{}", addr.port()).parse().unwrap())
+        .await
+        .into();
+    let listener = TlsListener::new(acceptor, tokio::net::TcpListener::from_std(listener)?);
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    tokio::spawn(
+        Server::builder(listener)
+            .serve(make_svc)
+            .with_graceful_shutdown(async { rx.await.unwrap_or_default() }),
+    );
+
+    Ok((addr, tx))
+}
+
+fn native_tls_client() -> hyper::client::Client<hyper_tls::HttpsConnector<HttpConnector>> {
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+    let ca_cert =
+        native_tls::Certificate::from_pem(include_bytes!("../../examples/ca/hudsucker.cer"))
+            .unwrap();
+
+    let tls = native_tls::TlsConnector::builder()
+        .add_root_certificate(ca_cert)
+        .build()
+        .unwrap()
+        .into();
+
+    let https: hyper_tls::HttpsConnector<HttpConnector> = (http, tls).into();
+
+    hyper::Client::builder().build(https)
+}
+
 pub fn start_proxy(
     ca: impl CertificateAuthority,
 ) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>> {
@@ -70,7 +116,7 @@ pub fn start_proxy(
 
     let proxy = ProxyBuilder::new()
         .with_listener(listener)
-        .with_rustls_client()
+        .with_client(native_tls_client())
         .with_ca(ca)
         .with_http_handler(http_handler.clone())
         .build();
@@ -91,7 +137,7 @@ pub fn start_noop_proxy(
 
     let proxy = ProxyBuilder::new()
         .with_listener(listener)
-        .with_rustls_client()
+        .with_client(native_tls_client())
         .with_ca(ca)
         .build();
 
@@ -104,7 +150,6 @@ pub fn start_noop_proxy(
 
 pub fn build_client(proxy: &str) -> reqwest::Client {
     let proxy = reqwest::Proxy::all(proxy).unwrap();
-
     let ca_cert = Certificate::from_pem(include_bytes!("../../examples/ca/hudsucker.cer")).unwrap();
 
     reqwest::Client::builder()
