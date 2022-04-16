@@ -2,9 +2,8 @@ use crate::Error;
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
-use http::header::{CONTENT_ENCODING, CONTENT_LENGTH};
 use hyper::{
-    header::{HeaderMap, HeaderValue},
+    header::{HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
     Body, Error as HyperError, Request, Response,
 };
 use std::{

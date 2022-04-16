@@ -5,8 +5,8 @@ use crate::{
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::PathAndQuery;
 use hyper::{
-    client::connect::Connect, server::conn::Http, service::service_fn, upgrade::Upgraded, Body,
-    Client, Method, Request, Response, Uri,
+    client::connect::Connect, header::HeaderValue, server::conn::Http, service::service_fn,
+    upgrade::Upgraded, Body, Client, Method, Request, Response, Uri,
 };
 use std::{future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -109,7 +109,9 @@ where
             };
 
             if hyper_tungstenite::is_upgrade_request(&req) {
-                let scheme = if req.uri().scheme().unwrap_or(&http::uri::Scheme::HTTP)
+                let (parts, body) = req.into_parts();
+
+                let scheme = if parts.uri.scheme().unwrap_or(&http::uri::Scheme::HTTP)
                     == &http::uri::Scheme::HTTP
                 {
                     "ws"
@@ -117,16 +119,20 @@ where
                     "wss"
                 };
 
-                let uri = http::uri::Builder::new()
+                let authority = parts
+                    .uri
+                    .authority()
+                    .expect("Authority not included in request")
+                    .clone();
+
+                let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
+
+                let uri = Uri::builder()
                     .scheme(scheme)
-                    .authority(
-                        req.uri()
-                            .authority()
-                            .expect("Authority not included in request")
-                            .clone(),
-                    )
+                    .authority(authority)
                     .path_and_query(
-                        req.uri()
+                        parts
+                            .uri
                             .path_and_query()
                             .unwrap_or(&PathAndQuery::from_static("/"))
                             .clone(),
@@ -134,6 +140,21 @@ where
                     .build()
                     .expect("Failed to build URI for websocket connection");
 
+                let ws_req = {
+                    let mut builder = Request::builder()
+                        .version(parts.version)
+                        .method(parts.method.clone())
+                        .uri(uri);
+
+                    if let Some(headers) = builder.headers_mut() {
+                        *headers = parts.headers.clone();
+                        headers.append(hyper::header::HOST, host);
+                    }
+
+                    builder.body(()).expect("Failed to build websocket request")
+                };
+
+                let req = Request::from_parts(parts, body);
                 let span = span_from_request!("websocket", req, self.client_addr);
                 let (res, websocket) =
                     hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
@@ -141,8 +162,8 @@ where
                 let fut = async move {
                     match websocket.await {
                         Ok(ws) => {
-                            if let Err(e) = self.handle_websocket(ws, uri).await {
-                                error!("Failed to handle websocket: {}", e);
+                            if let Err(e) = self.handle_websocket(ws, ws_req).await {
+                                error!("Failed to handle websocket: {:?}", e);
                             }
                         }
                         Err(e) => {
@@ -224,9 +245,10 @@ where
     async fn handle_websocket(
         self,
         server_socket: WebSocketStream<Upgraded>,
-        uri: Uri,
+        req: Request<()>,
     ) -> Result<(), tungstenite::Error> {
-        let (client_socket, _) = connect_async(&uri).await?;
+        let uri = req.uri().clone();
+        let (client_socket, _) = connect_async(req).await?;
         let (server_sink, server_stream) = server_socket.split();
         let (client_sink, client_stream) = client_socket.split();
 
@@ -260,12 +282,13 @@ where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         let service = service_fn(|mut req| {
-            if req.version() == http::Version::HTTP_10 || req.version() == http::Version::HTTP_11 {
+            if req.version() == hyper::Version::HTTP_10 || req.version() == hyper::Version::HTTP_11
+            {
                 let (mut parts, body) = req.into_parts();
 
                 let authority = parts
                     .headers
-                    .get(http::header::HOST)
+                    .get(hyper::header::HOST)
                     .expect("Host is a required header")
                     .to_str()
                     .expect("Failed to convert host to str");
@@ -273,7 +296,7 @@ where
                 parts.uri = {
                     let parts = parts.uri.into_parts();
 
-                    http::uri::Builder::new()
+                    Uri::builder()
                         .scheme(scheme.clone())
                         .authority(authority)
                         .path_and_query(
@@ -347,10 +370,11 @@ fn spawn_message_forwarder(
 
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
-    req.headers_mut().remove(http::header::HOST);
+    req.headers_mut().remove(hyper::header::HOST);
 
     // HTTP/2.0 supports multiple cookie headers, but HTTP/1.x only supports one.
-    if let http::header::Entry::Occupied(cookies) = req.headers_mut().entry(http::header::COOKIE) {
+    if let hyper::header::Entry::Occupied(cookies) = req.headers_mut().entry(hyper::header::COOKIE)
+    {
         let joined_cookies: String = cookies
             .remove_entry_mult()
             .1
@@ -359,13 +383,13 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
             .join("; ");
 
         req.headers_mut().insert(
-            http::header::COOKIE,
+            hyper::header::COOKIE,
             joined_cookies.try_into().expect("Failed to join cookies"),
         );
     }
 
     let (mut parts, body) = req.into_parts();
-    parts.version = http::Version::HTTP_11;
+    parts.version = hyper::Version::HTTP_11;
     Request::from_parts(parts, body)
 }
 
@@ -380,28 +404,28 @@ mod tests {
         fn removes_host_header() {
             let req = Request::builder()
                 .uri("http://example.com/")
-                .header(http::header::HOST, "example.com")
+                .header(hyper::header::HOST, "example.com")
                 .body(())
                 .unwrap();
 
             let req = normalize_request(req);
 
-            assert_eq!(req.headers().get(http::header::HOST), None);
+            assert_eq!(req.headers().get(hyper::header::HOST), None);
         }
 
         #[test]
         fn joins_cookies() {
             let req = Request::builder()
                 .uri("http://example.com/")
-                .header(http::header::COOKIE, "foo=bar")
-                .header(http::header::COOKIE, "baz=qux")
+                .header(hyper::header::COOKIE, "foo=bar")
+                .header(hyper::header::COOKIE, "baz=qux")
                 .body(())
                 .unwrap();
 
             let req = normalize_request(req);
 
             assert_eq!(
-                req.headers().get(http::header::COOKIE),
+                req.headers().get(hyper::header::COOKIE),
                 Some(&"foo=bar; baz=qux".parse().unwrap())
             );
         }
