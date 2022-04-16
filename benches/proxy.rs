@@ -128,6 +128,15 @@ fn start_proxy(
     Ok((addr, tx))
 }
 
+fn build_client() -> reqwest::Client {
+    let ca_cert = Certificate::from_pem(include_bytes!("../examples/ca/hudsucker.cer")).unwrap();
+
+    reqwest::Client::builder()
+        .add_root_certificate(ca_cert)
+        .build()
+        .unwrap()
+}
+
 fn build_proxied_client(proxy: &str) -> reqwest::Client {
     let proxy = reqwest::Proxy::all(proxy).unwrap();
     let ca_cert = Certificate::from_pem(include_bytes!("../examples/ca/hudsucker.cer")).unwrap();
@@ -146,41 +155,52 @@ fn bench_local(c: &mut Criterion) {
     let (proxy_addr, stop_proxy) = start_proxy(build_ca()).unwrap();
     let (http_addr, stop_http) = start_http_server().unwrap();
     let (https_addr, stop_https) = runtime.block_on(start_https_server()).unwrap();
-    let client = reqwest::Client::new();
+    let client = build_client();
     let proxied_client = build_proxied_client(&proxy_addr.to_string());
 
     let mut group = c.benchmark_group("proxy local site");
     group.throughput(Throughput::Elements(1));
     group.bench_function("HTTP without proxy", |b| {
-        b.to_async(&runtime)
-            .iter(|| client.get(format!("http://{}/hello", http_addr)).send())
+        b.to_async(&runtime).iter(|| async {
+            client
+                .get(format!("http://{}/hello", http_addr))
+                .send()
+                .await
+                .unwrap()
+        })
     });
     group.bench_function("HTTP with proxy", |b| {
-        b.to_async(&runtime).iter(|| {
+        b.to_async(&runtime).iter(|| async {
             proxied_client
                 .get(format!("http://{}/hello", http_addr))
                 .send()
+                .await
+                .unwrap()
         })
     });
     group.bench_function("HTTPS without proxy", |b| {
-        b.to_async(&runtime).iter(|| {
+        b.to_async(&runtime).iter(|| async {
             client
                 .get(format!("https://localhost:{}/hello", https_addr.port()))
                 .send()
+                .await
+                .unwrap()
         })
     });
     group.bench_function("HTTPS with proxy", |b| {
-        b.to_async(&runtime).iter(|| {
+        b.to_async(&runtime).iter(|| async {
             proxied_client
                 .get(format!("https://localhost:{}/hello", https_addr.port()))
                 .send()
+                .await
+                .unwrap()
         })
     });
     group.finish();
 
-    let _ = stop_http.send(());
-    let _ = stop_https.send(());
-    let _ = stop_proxy.send(());
+    stop_http.send(()).unwrap();
+    stop_https.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
 }
 
 fn bench_remote(c: &mut Criterion) {
@@ -188,26 +208,36 @@ fn bench_remote(c: &mut Criterion) {
     let _guard = runtime.enter();
 
     let (proxy_addr, stop_proxy) = start_proxy(build_ca()).unwrap();
-    let client = reqwest::Client::new();
+    let client = build_client();
     let proxied_client = build_proxied_client(&proxy_addr.to_string());
 
     let mut group = c.benchmark_group("proxy remote site");
     group.throughput(Throughput::Elements(1));
     group.bench_function("HTTP without proxy", |b| {
         b.to_async(&runtime)
-            .iter(|| client.get("http://echo.omjad.as").send())
+            .iter(|| async { client.get("http://echo.omjad.as").send().await.unwrap() })
     });
     group.bench_function("HTTP with proxy", |b| {
-        b.to_async(&runtime)
-            .iter(|| proxied_client.get("http://echo.omjad.as").send())
+        b.to_async(&runtime).iter(|| async {
+            proxied_client
+                .get("http://echo.omjad.as")
+                .send()
+                .await
+                .unwrap()
+        })
     });
     group.bench_function("HTTPS without proxy", |b| {
         b.to_async(&runtime)
-            .iter(|| client.get("https://echo.omjad.as").send())
+            .iter(|| async { client.get("https://echo.omjad.as").send().await.unwrap() })
     });
     group.bench_function("HTTPS with proxy", |b| {
-        b.to_async(&runtime)
-            .iter(|| proxied_client.get("https://echo.omjad.as").send())
+        b.to_async(&runtime).iter(|| async {
+            proxied_client
+                .get("https://echo.omjad.as")
+                .send()
+                .await
+                .unwrap()
+        })
     });
     group.finish();
 
