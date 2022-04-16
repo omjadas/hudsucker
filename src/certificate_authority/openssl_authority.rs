@@ -1,4 +1,4 @@
-use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, TTL_DAYS};
+use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS};
 use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
@@ -11,7 +11,10 @@ use openssl::{
     rand,
     x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use tokio_rustls::rustls::{self, ServerConfig};
 
 /// Issues certificates for use when communicating with clients.
@@ -73,8 +76,15 @@ impl OpensslAuthority {
         let mut x509_builder = X509Builder::new()?;
         x509_builder.set_subject_name(&name)?;
         x509_builder.set_version(2)?;
-        x509_builder.set_not_before(Asn1Time::days_from_now(0)?.as_ref())?;
-        x509_builder.set_not_after(Asn1Time::days_from_now(TTL_DAYS as u32)?.as_ref())?;
+
+        let not_before = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Failed to determine current UNIX time")
+            .as_secs() as i64
+            - NOT_BEFORE_OFFSET;
+        x509_builder.set_not_before(Asn1Time::from_unix(not_before)?.as_ref())?;
+        x509_builder.set_not_after(Asn1Time::from_unix(not_before + TTL_SECS)?.as_ref())?;
+
         x509_builder.set_pubkey(&self.pkey)?;
         x509_builder.set_issuer_name(self.ca_cert.subject_name())?;
 

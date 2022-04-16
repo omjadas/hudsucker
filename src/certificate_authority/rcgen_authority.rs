@@ -1,5 +1,5 @@
 use crate::{
-    certificate_authority::{CertificateAuthority, CACHE_TTL, TTL_DAYS},
+    certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS},
     Error,
 };
 use async_trait::async_trait;
@@ -72,11 +72,13 @@ impl RcgenAuthority {
     }
 
     fn gen_cert(&self, authority: &Authority) -> rustls::Certificate {
-        let now = OffsetDateTime::now_utc();
         let mut params = rcgen::CertificateParams::default();
         params.serial_number = Some(thread_rng().gen::<u64>());
-        params.not_before = now;
-        params.not_after = now + Duration::days(TTL_DAYS as i64);
+
+        let not_before = OffsetDateTime::now_utc() - Duration::seconds(NOT_BEFORE_OFFSET);
+        params.not_before = not_before;
+        params.not_after = not_before + Duration::seconds(TTL_SECS);
+
         params
             .subject_alt_names
             .push(SanType::DnsName(authority.host().to_string()));

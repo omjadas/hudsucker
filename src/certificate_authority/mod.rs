@@ -13,9 +13,9 @@ pub use openssl_authority::*;
 #[cfg(feature = "rcgen-certs")]
 pub use rcgen_authority::*;
 
-const TTL_DAYS: u64 = 365;
-const TTL_SECS: u64 = TTL_DAYS * 24 * 60 * 60;
-const CACHE_TTL: u64 = TTL_SECS / 2;
+const TTL_SECS: i64 = 365 * 24 * 60 * 60;
+const CACHE_TTL: u64 = TTL_SECS as u64 / 2;
+const NOT_BEFORE_OFFSET: i64 = 60;
 
 /// Issues certificates for use when communicating with clients.
 ///
