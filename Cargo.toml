@@ -73,11 +73,11 @@ required-features = ["openssl-certs", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["decoder", "openssl-certs"]
+required-features = ["decoder", "openssl-certs", "decoder"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["decoder", "rcgen-certs"]
+required-features = ["decoder", "rcgen-certs", "decoder"]
 
 [[bench]]
 name = "certificate_authorities"

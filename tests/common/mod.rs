@@ -155,6 +155,9 @@ pub fn build_client(proxy: &str) -> reqwest::Client {
     reqwest::Client::builder()
         .proxy(proxy)
         .add_root_certificate(ca_cert)
+        .no_brotli()
+        .no_deflate()
+        .no_gzip()
         .build()
         .unwrap()
 }
