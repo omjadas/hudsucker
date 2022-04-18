@@ -1,6 +1,6 @@
 [package]
 name = "hudsucker"
-version = "0.17.1"
+version = "0.17.2"
 edition = "2021"
 description = "MITM HTTP/S proxy"
 documentation = "https://docs.rs/hudsucker"
