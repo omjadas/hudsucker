@@ -1,6 +1,6 @@
 use crate::{
-    certificate_authority::CertificateAuthority, HttpContext, HttpHandler, MessageContext,
-    MessageHandler, RequestOrResponse, Rewind,
+    certificate_authority::CertificateAuthority, HttpContext, HttpHandler, RequestOrResponse,
+    Rewind, WebSocketContext, WebSocketHandler,
 };
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::PathAndQuery;
@@ -44,49 +44,44 @@ macro_rules! span_from_request {
     }};
 }
 
-pub(crate) struct InternalProxy<C, CA, H, M1, M2>
+pub(crate) struct InternalProxy<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
     H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
+    W: WebSocketHandler,
 {
     pub ca: Arc<CA>,
     pub client: Client<C>,
     pub http_handler: H,
-    pub incoming_message_handler: M1,
-    pub outgoing_message_handler: M2,
+    pub websocket_handler: W,
     pub client_addr: SocketAddr,
 }
 
-impl<C, CA, H, M1, M2> Clone for InternalProxy<C, CA, H, M1, M2>
+impl<C, CA, H, W> Clone for InternalProxy<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
     H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
+    W: WebSocketHandler,
 {
     fn clone(&self) -> Self {
         InternalProxy {
             ca: Arc::clone(&self.ca),
             client: self.client.clone(),
             http_handler: self.http_handler.clone(),
-            incoming_message_handler: self.incoming_message_handler.clone(),
-            outgoing_message_handler: self.outgoing_message_handler.clone(),
+            websocket_handler: self.websocket_handler.clone(),
             client_addr: self.client_addr,
         }
     }
 }
 
-impl<C, CA, H, M1, M2> InternalProxy<C, CA, H, M1, M2>
+impl<C, CA, H, W> InternalProxy<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
     H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
+    W: WebSocketHandler,
 {
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {
@@ -253,25 +248,27 @@ where
         let (client_sink, client_stream) = client_socket.split();
 
         let InternalProxy {
-            incoming_message_handler,
-            outgoing_message_handler,
-            ..
+            websocket_handler, ..
         } = self;
 
         spawn_message_forwarder(
             server_stream,
             client_sink,
-            incoming_message_handler,
-            self.client_addr,
-            uri.clone(),
+            websocket_handler.clone(),
+            WebSocketContext::ServerToClient {
+                src: uri.clone(),
+                dst: self.client_addr,
+            },
         );
 
         spawn_message_forwarder(
             client_stream,
             server_sink,
-            outgoing_message_handler,
-            self.client_addr,
-            uri,
+            websocket_handler,
+            WebSocketContext::ClientToServer {
+                src: self.client_addr,
+                dst: uri,
+            },
         );
 
         Ok(())
@@ -324,16 +321,10 @@ where
 fn spawn_message_forwarder(
     mut stream: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin + Send + 'static,
     mut sink: impl Sink<Message, Error = tungstenite::Error> + Unpin + Send + 'static,
-    mut handler: impl MessageHandler,
-    client_addr: SocketAddr,
-    uri: Uri,
+    mut handler: impl WebSocketHandler,
+    ctx: WebSocketContext,
 ) {
-    let span = info_span!("message_forwarder", client_addr=%client_addr, server_uri=%uri);
-
-    let ctx = MessageContext {
-        client_addr,
-        server_uri: uri,
-    };
+    let span = info_span!("message_forwarder", context = ?ctx);
 
     let fut = async move {
         while let Some(message) = stream.next().await {

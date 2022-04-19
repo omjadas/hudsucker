@@ -60,11 +60,19 @@ pub struct HttpContext {
 
 /// Context for websocket messages.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct MessageContext {
-    /// Address of the client.
-    pub client_addr: SocketAddr,
-    /// URI of the server.
-    pub server_uri: Uri,
+pub enum WebSocketContext {
+    ClientToServer {
+        /// Address of the client.
+        src: SocketAddr,
+        /// URI of the server.
+        dst: Uri,
+    },
+    ServerToClient {
+        /// URI of the server.
+        src: Uri,
+        /// Address of the client.
+        dst: SocketAddr,
+    },
 }
 
 /// Handler for HTTP requests and responses.
@@ -94,12 +102,12 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
 ///
 /// Messages sent over the same websocket stream are passed to the same instance of the handler.
 #[async_trait::async_trait]
-pub trait MessageHandler: Clone + Send + Sync + 'static {
+pub trait WebSocketHandler: Clone + Send + Sync + 'static {
     /// The handler will be called for each websocket message. It can return an optional modified
     /// message. If None is returned the message will not be forwarded.
     async fn handle_message(
         &mut self,
-        context: &MessageContext,
+        context: &WebSocketContext,
         message: Message,
     ) -> Option<Message>;
 }

@@ -1,4 +1,4 @@
-use crate::{HttpContext, HttpHandler, MessageContext, MessageHandler, RequestOrResponse};
+use crate::{HttpContext, HttpHandler, RequestOrResponse, WebSocketContext, WebSocketHandler};
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use tokio_tungstenite::tungstenite::Message;
@@ -34,17 +34,17 @@ impl HttpHandler for NoopHttpHandler {
 ///
 /// When using this handler, websocket messages will not be modified.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct NoopMessageHandler(());
+pub struct NoopWebSocketHandler(());
 
-impl NoopMessageHandler {
+impl NoopWebSocketHandler {
     pub(crate) fn new() -> Self {
-        NoopMessageHandler(())
+        NoopWebSocketHandler(())
     }
 }
 
 #[async_trait]
-impl MessageHandler for NoopMessageHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
+impl WebSocketHandler for NoopWebSocketHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         Some(msg)
     }
 }

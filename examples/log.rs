@@ -39,8 +39,8 @@ impl HttpHandler for LogHandler {
 struct WsLogHandler;
 
 #[async_trait]
-impl MessageHandler for WsLogHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
+impl WebSocketHandler for WsLogHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         println!("{:?}", msg);
         Some(msg)
     }
@@ -71,8 +71,7 @@ async fn main() {
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(LogHandler)
-        .with_incoming_message_handler(WsLogHandler)
-        .with_outgoing_message_handler(WsLogHandler)
+        .with_websocket_handler(WsLogHandler)
         .build();
 
     if let Err(e) = proxy.start(shutdown_signal()).await {

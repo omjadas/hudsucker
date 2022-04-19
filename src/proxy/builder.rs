@@ -1,6 +1,6 @@
 use crate::{
-    certificate_authority::CertificateAuthority, proxy::Proxy, HttpHandler, MessageHandler,
-    NoopHttpHandler, NoopMessageHandler,
+    certificate_authority::CertificateAuthority, proxy::Proxy, HttpHandler, NoopHttpHandler,
+    NoopWebSocketHandler, WebSocketHandler,
 };
 use hyper::{
     client::{connect::Connect, Client, HttpConnector},
@@ -180,99 +180,76 @@ where
     pub fn with_ca<CA: CertificateAuthority>(
         self,
         ca: CA,
-    ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHttpHandler, NoopMessageHandler, NoopMessageHandler>>
-    {
+    ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHttpHandler, NoopWebSocketHandler>> {
         ProxyBuilder(WantsHandlers {
             als: self.0.als,
             client: self.0.client,
             ca,
             http_handler: NoopHttpHandler::new(),
-            incoming_message_handler: NoopMessageHandler::new(),
-            outgoing_message_handler: NoopMessageHandler::new(),
+            websocket_handler: NoopWebSocketHandler::new(),
         })
     }
 }
 
 /// Builder state that can take additional handlers.
 #[derive(Debug)]
-pub struct WantsHandlers<C, CA, H, M1, M2>
+pub struct WantsHandlers<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
     H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
+    W: WebSocketHandler,
 {
     als: AddrListenerServer,
     client: Client<C>,
     ca: CA,
     http_handler: H,
-    incoming_message_handler: M1,
-    outgoing_message_handler: M2,
+    websocket_handler: W,
 }
 
-impl<C, CA, H, M1, M2> ProxyBuilder<WantsHandlers<C, CA, H, M1, M2>>
+impl<C, CA, H, W> ProxyBuilder<WantsHandlers<C, CA, H, W>>
 where
     C: Connect + Clone + Send + Sync + 'static,
     CA: CertificateAuthority,
     H: HttpHandler,
-    M1: MessageHandler,
-    M2: MessageHandler,
+    W: WebSocketHandler,
 {
     /// Set the HTTP handler.
     pub fn with_http_handler<H2: HttpHandler>(
         self,
         http_handler: H2,
-    ) -> ProxyBuilder<WantsHandlers<C, CA, H2, M1, M2>> {
+    ) -> ProxyBuilder<WantsHandlers<C, CA, H2, W>> {
         ProxyBuilder(WantsHandlers {
             als: self.0.als,
             client: self.0.client,
             ca: self.0.ca,
             http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
+            websocket_handler: self.0.websocket_handler,
         })
     }
 
-    /// Set the incoming message handler.
-    pub fn with_incoming_message_handler<M: MessageHandler>(
+    /// Set the WebSocket handler.
+    pub fn with_websocket_handler<W2: WebSocketHandler>(
         self,
-        incoming_message_handler: M,
-    ) -> ProxyBuilder<WantsHandlers<C, CA, H, M, M2>> {
+        incoming_message_handler: W2,
+    ) -> ProxyBuilder<WantsHandlers<C, CA, H, W2>> {
         ProxyBuilder(WantsHandlers {
             als: self.0.als,
             client: self.0.client,
             ca: self.0.ca,
             http_handler: self.0.http_handler,
-            incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
-        })
-    }
-
-    /// Set the outgoing message handler.
-    pub fn with_outgoing_message_handler<M: MessageHandler>(
-        self,
-        outgoing_message_handler: M,
-    ) -> ProxyBuilder<WantsHandlers<C, CA, H, M1, M>> {
-        ProxyBuilder(WantsHandlers {
-            als: self.0.als,
-            client: self.0.client,
-            ca: self.0.ca,
-            http_handler: self.0.http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler,
+            websocket_handler: incoming_message_handler,
         })
     }
 
     /// Build the proxy.
-    pub fn build(self) -> Proxy<C, CA, H, M1, M2> {
+    pub fn build(self) -> Proxy<C, CA, H, W> {
         Proxy {
             als: self.0.als,
             client: self.0.client,
             ca: Arc::new(self.0.ca),
             http_handler: self.0.http_handler,
-            incoming_message_handler: self.0.incoming_message_handler,
-            outgoing_message_handler: self.0.outgoing_message_handler,
+            websocket_handler: self.0.websocket_handler,
         }
     }
 }

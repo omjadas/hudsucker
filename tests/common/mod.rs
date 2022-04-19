@@ -12,7 +12,7 @@ use hudsucker::{
         Body, Method, Request, Response, Server, StatusCode,
     },
     tungstenite::Message,
-    HttpContext, HttpHandler, MessageContext, MessageHandler, ProxyBuilder, RequestOrResponse,
+    HttpContext, HttpHandler, ProxyBuilder, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
 use std::{
@@ -128,29 +128,35 @@ fn native_tls_client() -> hyper::client::Client<hyper_tls::HttpsConnector<HttpCo
 
 pub fn start_proxy(
     ca: impl CertificateAuthority,
-) -> Result<(SocketAddr, TestHttpHandler, TestMessageHandler, Sender<()>), Box<dyn std::error::Error>>
-{
+) -> Result<
+    (
+        SocketAddr,
+        TestHttpHandler,
+        TestWebSocketHandler,
+        Sender<()>,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     let http_handler = TestHttpHandler::new();
-    let message_handler = TestMessageHandler::new();
+    let websocket_handler = TestWebSocketHandler::new();
 
     let proxy = ProxyBuilder::new()
         .with_listener(listener)
         .with_client(native_tls_client())
         .with_ca(ca)
         .with_http_handler(http_handler.clone())
-        .with_incoming_message_handler(message_handler.clone())
-        .with_outgoing_message_handler(message_handler.clone())
+        .with_websocket_handler(websocket_handler.clone())
         .build();
 
     tokio::spawn(proxy.start(async {
         rx.await.unwrap_or_default();
     }));
 
-    Ok((addr, http_handler, message_handler, tx))
+    Ok((addr, http_handler, websocket_handler, tx))
 }
 
 pub fn start_noop_proxy(
@@ -221,11 +227,11 @@ impl HttpHandler for TestHttpHandler {
 }
 
 #[derive(Clone)]
-pub struct TestMessageHandler {
+pub struct TestWebSocketHandler {
     pub message_counter: Arc<AtomicUsize>,
 }
 
-impl TestMessageHandler {
+impl TestWebSocketHandler {
     pub fn new() -> Self {
         Self {
             message_counter: Arc::new(AtomicUsize::new(0)),
@@ -234,8 +240,8 @@ impl TestMessageHandler {
 }
 
 #[async_trait]
-impl MessageHandler for TestMessageHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
+impl WebSocketHandler for TestWebSocketHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         self.message_counter.fetch_add(1, Ordering::Relaxed);
         Some(msg)
     }
