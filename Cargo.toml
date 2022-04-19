@@ -39,6 +39,7 @@ tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 
 [dev-dependencies]
+async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
 criterion = { version = "0.3.5", features = ["async_tokio"] }
 hyper-tls = "0.5.0"
 reqwest = "0.11.10"
@@ -73,11 +74,15 @@ required-features = ["openssl-certs", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["decoder", "openssl-certs", "decoder"]
+required-features = ["decoder", "openssl-certs"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["decoder", "rcgen-certs", "decoder"]
+required-features = ["decoder", "rcgen-certs"]
+
+[[test]]
+name = "websocket"
+required-features = ["decoder", "rcgen-certs"]
 
 [[bench]]
 name = "certificate_authorities"
