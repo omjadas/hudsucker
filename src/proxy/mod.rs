@@ -12,6 +12,7 @@ use hyper::{
 };
 use internal::InternalProxy;
 use std::{convert::Infallible, future::Future, sync::Arc};
+use tokio_tungstenite::Connector;
 
 pub use builder::ProxyBuilder;
 
@@ -67,7 +68,6 @@ pub use builder::ProxyBuilder;
 /// # #[cfg(not(all(feature = "rcgen-certs", feature = "rustls-client")))]
 /// # fn main() {}
 /// ```
-#[derive(Debug)]
 pub struct Proxy<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -80,6 +80,7 @@ where
     client: Client<C>,
     http_handler: H,
     websocket_handler: W,
+    websocket_connector: Option<Connector>,
 }
 
 impl<C, CA, H, W> Proxy<C, CA, H, W>
@@ -100,6 +101,7 @@ where
             let ca = Arc::clone(&self.ca);
             let http_handler = self.http_handler.clone();
             let websocket_handler = self.websocket_handler.clone();
+            let websocket_connector = self.websocket_connector.clone();
             let client_addr = conn.remote_addr();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
@@ -108,6 +110,7 @@ where
                         client: client.clone(),
                         http_handler: http_handler.clone(),
                         websocket_handler: websocket_handler.clone(),
+                        websocket_connector: websocket_connector.clone(),
                         client_addr,
                     }
                     .proxy(req)

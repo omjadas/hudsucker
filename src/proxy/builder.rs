@@ -1,6 +1,6 @@
 use crate::{
-    certificate_authority::CertificateAuthority, proxy::Proxy, HttpHandler, NoopHttpHandler,
-    NoopWebSocketHandler, WebSocketHandler,
+    certificate_authority::CertificateAuthority, HttpHandler, NoopHttpHandler,
+    NoopWebSocketHandler, Proxy, WebSocketHandler,
 };
 use hyper::{
     client::{connect::Connect, Client, HttpConnector},
@@ -14,6 +14,7 @@ use std::{
     net::{SocketAddr, TcpListener},
     sync::Arc,
 };
+use tokio_tungstenite::Connector;
 
 /// A builder for creating a [`Proxy`].
 ///
@@ -187,12 +188,12 @@ where
             ca,
             http_handler: NoopHttpHandler::new(),
             websocket_handler: NoopWebSocketHandler::new(),
+            websocket_connector: None,
         })
     }
 }
 
 /// Builder state that can take additional handlers.
-#[derive(Debug)]
 pub struct WantsHandlers<C, CA, H, W>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -205,6 +206,7 @@ where
     ca: CA,
     http_handler: H,
     websocket_handler: W,
+    websocket_connector: Option<Connector>,
 }
 
 impl<C, CA, H, W> ProxyBuilder<WantsHandlers<C, CA, H, W>>
@@ -225,20 +227,30 @@ where
             ca: self.0.ca,
             http_handler,
             websocket_handler: self.0.websocket_handler,
+            websocket_connector: self.0.websocket_connector,
         })
     }
 
     /// Set the WebSocket handler.
     pub fn with_websocket_handler<W2: WebSocketHandler>(
         self,
-        incoming_message_handler: W2,
+        websocket_handler: W2,
     ) -> ProxyBuilder<WantsHandlers<C, CA, H, W2>> {
         ProxyBuilder(WantsHandlers {
             als: self.0.als,
             client: self.0.client,
             ca: self.0.ca,
             http_handler: self.0.http_handler,
-            websocket_handler: incoming_message_handler,
+            websocket_handler,
+            websocket_connector: self.0.websocket_connector,
+        })
+    }
+
+    /// Set the connector to use when connecting to WebSocket servers.
+    pub fn with_websocket_connector(self, connector: Connector) -> Self {
+        ProxyBuilder(WantsHandlers {
+            websocket_connector: Some(connector),
+            ..self.0
         })
     }
 
@@ -250,6 +262,7 @@ where
             ca: Arc::new(self.0.ca),
             http_handler: self.0.http_handler,
             websocket_handler: self.0.websocket_handler,
+            websocket_connector: self.0.websocket_connector,
         }
     }
 }

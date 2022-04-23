@@ -5,7 +5,7 @@ use futures::{SinkExt, StreamExt};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
     rustls,
-    tungstenite::{client::IntoClientRequest, Message},
+    tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message},
 };
 use rustls_pemfile as pemfile;
 use std::sync::atomic::Ordering;
@@ -33,7 +33,7 @@ fn build_ca() -> RcgenAuthority {
 
 #[tokio::test]
 async fn http() {
-    let (proxy_addr, _, message_handler, stop_proxy) = common::start_proxy(build_ca()).unwrap();
+    let (proxy_addr, _, websocket_handler, stop_proxy) = common::start_proxy(build_ca()).unwrap();
     let (server_addr, stop_server) = common::start_http_server().unwrap();
 
     let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
@@ -45,11 +45,36 @@ async fn http() {
     .await
     .unwrap();
 
-    let (mut ws, _) = tokio_tungstenite::client_async(
-        format!("ws://{}", server_addr)
-            .into_client_request()
-            .unwrap(),
+    let (mut ws, _) = tokio_tungstenite::client_async(format!("ws://{}", server_addr), stream)
+        .await
+        .unwrap();
+
+    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+
+    let msg = ws.next().await.unwrap().unwrap();
+
+    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(websocket_handler.message_counter.load(Ordering::Relaxed), 2);
+
+    stop_server.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn https() {
+    let (proxy_addr, _, websocket_handler, stop_proxy) = common::start_proxy(build_ca()).unwrap();
+    let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
+
+    let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
+    http_connect_tokio(&mut stream, "localhost", server_addr.port())
+        .await
+        .unwrap();
+
+    let (mut ws, _) = tokio_tungstenite::client_async_tls_with_config(
+        format!("wss://localhost:{}", server_addr.port()),
         stream,
+        None,
+        Some(common::tokio_tungstenite_connector()),
     )
     .await
     .unwrap();
@@ -59,7 +84,7 @@ async fn http() {
     let msg = ws.next().await.unwrap().unwrap();
 
     assert_eq!(msg.to_string(), common::WORLD);
-    assert_eq!(message_handler.message_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(websocket_handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();
@@ -79,14 +104,9 @@ async fn noop() {
     .await
     .unwrap();
 
-    let (mut ws, _) = tokio_tungstenite::client_async(
-        format!("ws://{}", server_addr)
-            .into_client_request()
-            .unwrap(),
-        stream,
-    )
-    .await
-    .unwrap();
+    let (mut ws, _) = tokio_tungstenite::client_async(format!("ws://{}", server_addr), stream)
+        .await
+        .unwrap();
 
     ws.send(Message::Text("hello".to_owned())).await.unwrap();
     let msg = ws.next().await.unwrap().unwrap();

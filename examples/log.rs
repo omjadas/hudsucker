@@ -2,7 +2,7 @@ use hudsucker::{
     async_trait::async_trait,
     certificate_authority::RcgenAuthority,
     hyper::{Body, Request, Response},
-    tungstenite::Message,
+    tokio_tungstenite::tungstenite::Message,
     *,
 };
 use rustls_pemfile as pemfile;

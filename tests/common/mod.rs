@@ -11,7 +11,7 @@ use hudsucker::{
         service::{make_service_fn, service_fn},
         Body, Method, Request, Response, Server, StatusCode,
     },
-    tungstenite::Message,
+    tokio_tungstenite::tungstenite::Message,
     HttpContext, HttpHandler, ProxyBuilder, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
@@ -92,7 +92,7 @@ pub async fn start_https_server(
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?;
     let acceptor: tokio_rustls::TlsAcceptor = ca
-        .gen_server_config(&format!("localhost:{}", addr.port()).parse().unwrap())
+        .gen_server_config(&"localhost".parse().unwrap())
         .await
         .into();
     let listener = TlsListener::new(acceptor, tokio::net::TcpListener::from_std(listener)?);
@@ -108,19 +108,26 @@ pub async fn start_https_server(
     Ok((addr, tx))
 }
 
-fn native_tls_client() -> hyper::client::Client<hyper_tls::HttpsConnector<HttpConnector>> {
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
+fn native_tls_connector() -> native_tls::TlsConnector {
     let ca_cert =
         native_tls::Certificate::from_pem(include_bytes!("../../examples/ca/hudsucker.cer"))
             .unwrap();
 
-    let tls = native_tls::TlsConnector::builder()
+    native_tls::TlsConnector::builder()
         .add_root_certificate(ca_cert)
         .build()
         .unwrap()
-        .into();
+}
 
+pub fn tokio_tungstenite_connector() -> tokio_tungstenite::Connector {
+    tokio_tungstenite::Connector::NativeTls(native_tls_connector())
+}
+
+fn native_tls_client() -> hyper::client::Client<hyper_tls::HttpsConnector<HttpConnector>> {
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+
+    let tls = native_tls_connector().into();
     let https: hyper_tls::HttpsConnector<HttpConnector> = (http, tls).into();
 
     hyper::Client::builder().build(https)
@@ -143,6 +150,7 @@ pub fn start_proxy(
 
     let http_handler = TestHttpHandler::new();
     let websocket_handler = TestWebSocketHandler::new();
+    let websocket_connector = tokio_tungstenite_connector();
 
     let proxy = ProxyBuilder::new()
         .with_listener(listener)
@@ -150,6 +158,7 @@ pub fn start_proxy(
         .with_ca(ca)
         .with_http_handler(http_handler.clone())
         .with_websocket_handler(websocket_handler.clone())
+        .with_websocket_connector(websocket_connector)
         .build();
 
     tokio::spawn(proxy.start(async {

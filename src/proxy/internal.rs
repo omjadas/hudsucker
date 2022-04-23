@@ -15,9 +15,8 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
-    connect_async,
     tungstenite::{self, Message},
-    WebSocketStream,
+    Connector, WebSocketStream,
 };
 use tracing::*;
 
@@ -55,6 +54,7 @@ where
     pub client: Client<C>,
     pub http_handler: H,
     pub websocket_handler: W,
+    pub websocket_connector: Option<Connector>,
     pub client_addr: SocketAddr,
 }
 
@@ -71,6 +71,7 @@ where
             client: self.client.clone(),
             http_handler: self.http_handler.clone(),
             websocket_handler: self.websocket_handler.clone(),
+            websocket_connector: self.websocket_connector.clone(),
             client_addr: self.client_addr,
         }
     }
@@ -243,7 +244,15 @@ where
         req: Request<()>,
     ) -> Result<(), tungstenite::Error> {
         let uri = req.uri().clone();
-        let (client_socket, _) = connect_async(req).await?;
+
+        #[cfg(any(feature = "rustls-client", feature = "native-tls-client"))]
+        let (client_socket, _) =
+            tokio_tungstenite::connect_async_tls_with_config(req, None, self.websocket_connector)
+                .await?;
+
+        #[cfg(not(any(feature = "rustls-client", feature = "native-tls-client")))]
+        let (client_socket, _) = tokio_tungstenite::connect_async(req).await?;
+
         let (server_sink, server_stream) = server_socket.split();
         let (client_sink, client_stream) = client_socket.split();
 

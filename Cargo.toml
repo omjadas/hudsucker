@@ -34,14 +34,13 @@ thiserror = "1.0.23"
 time = { version = "0.3.1", optional = true }
 tokio = { version = "1.6.1", features = ["rt"] }
 tokio-rustls = "0.23.0"
-tokio-tungstenite = { version = "0.17.0", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.17.0" }
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 
 [dev-dependencies]
 async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
 criterion = { version = "0.3.5", features = ["async_tokio"] }
-hyper-tls = "0.5.0"
 reqwest = "0.11.10"
 rustls-pemfile = "1.0.0"
 tls-listener = { version = "0.5.1", features = ["rustls", "hyper-h1", "hyper-h2"] }
@@ -50,15 +49,19 @@ tokio-native-tls = "0.3.0"
 tracing-subscriber = "0.3.0"
 x509-parser = "0.13.1"
 
+# TODO: remove this when the `tokio-tungstenite` crate is updated
+[patch.crates-io]
+tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite" }
+
 [features]
 default = ["decoder", "rcgen-certs", "rustls-client"]
 full = ["http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
 http2 = ["hyper/http2", "hyper-rustls?/http2"]
 decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
-native-tls-client = ["dep:hyper-tls"]
+native-tls-client = ["dep:hyper-tls", "tokio-tungstenite/native-tls"]
 openssl-certs = ["dep:openssl", "dep:moka"]
 rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
-rustls-client = ["dep:hyper-rustls"]
+rustls-client = ["dep:hyper-rustls", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [[example]]
 name = "log"
@@ -74,15 +77,15 @@ required-features = ["openssl-certs", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["decoder", "openssl-certs"]
+required-features = ["decoder", "openssl-certs", "native-tls-client"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["decoder", "rcgen-certs"]
+required-features = ["decoder", "rcgen-certs", "native-tls-client"]
 
 [[test]]
 name = "websocket"
-required-features = ["decoder", "rcgen-certs"]
+required-features = ["decoder", "rcgen-certs", "native-tls-client"]
 
 [[bench]]
 name = "certificate_authorities"

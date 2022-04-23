@@ -36,7 +36,7 @@ pub use hyper;
 #[cfg(feature = "openssl-certs")]
 pub use openssl;
 pub use tokio_rustls::rustls;
-pub use tokio_tungstenite::tungstenite;
+pub use tokio_tungstenite;
 
 #[cfg(feature = "decoder")]
 pub use decoder::{decode_request, decode_response};
