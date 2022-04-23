@@ -101,3 +101,7 @@ required-features = ["decoder"]
 name = "proxy"
 harness = false
 required-features = ["rcgen-certs", "rustls-client"]
+
+[profile.bench]
+lto = true
+codegen-units = 1
