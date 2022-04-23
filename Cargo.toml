@@ -54,10 +54,10 @@ x509-parser = "0.13.1"
 tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite" }
 
 [features]
-default = ["decoder", "rcgen-certs", "rustls-client"]
-full = ["http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
-http2 = ["hyper/http2", "hyper-rustls?/http2"]
 decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
+default = ["decoder", "rcgen-certs", "rustls-client"]
+full = ["decoder", "http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
+http2 = ["hyper/http2", "hyper-rustls?/http2"]
 native-tls-client = ["dep:hyper-tls", "tokio-tungstenite/native-tls"]
 openssl-certs = ["dep:openssl", "dep:moka"]
 rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
