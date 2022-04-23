@@ -42,6 +42,7 @@ tracing = { version = "0.1.21", features = ["log"] }
 async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
 criterion = { version = "0.3.5", features = ["async_tokio"] }
 reqwest = "0.11.10"
+rustls-native-certs = "0.6.2"
 rustls-pemfile = "1.0.0"
 tls-listener = { version = "0.5.1", features = ["rustls", "hyper-h1", "hyper-h2"] }
 tokio = { version = "1.6.1", features = ["full"] }
@@ -77,15 +78,15 @@ required-features = ["openssl-certs", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["decoder", "openssl-certs", "native-tls-client"]
+required-features = ["decoder", "openssl-certs", "native-tls-client", "rustls-client"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["decoder", "rcgen-certs", "native-tls-client"]
+required-features = ["decoder", "rcgen-certs", "native-tls-client", "rustls-client"]
 
 [[test]]
 name = "websocket"
-required-features = ["decoder", "rcgen-certs", "native-tls-client"]
+required-features = ["decoder", "rcgen-certs", "native-tls-client", "rustls-client"]
 
 [[bench]]
 name = "certificate_authorities"

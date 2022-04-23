@@ -5,16 +5,21 @@ use hudsucker::{
     certificate_authority::CertificateAuthority,
     decode_request, decode_response,
     hyper::{
-        client::connect::HttpConnector,
+        client::{
+            connect::{Connect, HttpConnector},
+            Client,
+        },
         header::CONTENT_ENCODING,
         server::conn::AddrStream,
         service::{make_service_fn, service_fn},
         Body, Method, Request, Response, Server, StatusCode,
     },
+    rustls,
     tokio_tungstenite::tungstenite::Message,
     HttpContext, HttpHandler, ProxyBuilder, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
+use rustls_pemfile as pemfile;
 use std::{
     convert::Infallible,
     net::{SocketAddr, TcpListener},
@@ -108,6 +113,42 @@ pub async fn start_https_server(
     Ok((addr, tx))
 }
 
+fn rustls_client_config() -> rustls::ClientConfig {
+    let mut roots = rustls::RootCertStore::empty();
+
+    for cert in rustls_native_certs::load_native_certs().unwrap() {
+        let cert = rustls::Certificate(cert.0);
+        roots.add(&cert).unwrap();
+    }
+
+    let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
+    let ca_cert = rustls::Certificate(pemfile::certs(&mut ca_cert_bytes).unwrap().remove(0));
+
+    roots.add(&ca_cert).unwrap();
+
+    rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(roots)
+        .with_no_client_auth()
+}
+
+pub fn rustls_websocket_connector() -> tokio_tungstenite::Connector {
+    tokio_tungstenite::Connector::Rustls(Arc::new(rustls_client_config()))
+}
+
+pub fn rustls_client() -> Client<hyper_rustls::HttpsConnector<HttpConnector>> {
+    let https = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_tls_config(rustls_client_config())
+        .https_or_http()
+        .enable_http1()
+        .build();
+
+    Client::builder()
+        .http1_title_case_headers(true)
+        .http1_preserve_header_case(true)
+        .build(https)
+}
+
 fn native_tls_connector() -> native_tls::TlsConnector {
     let ca_cert =
         native_tls::Certificate::from_pem(include_bytes!("../../examples/ca/hudsucker.cer"))
@@ -119,22 +160,24 @@ fn native_tls_connector() -> native_tls::TlsConnector {
         .unwrap()
 }
 
-pub fn tokio_tungstenite_connector() -> tokio_tungstenite::Connector {
+pub fn native_tls_websocket_connector() -> tokio_tungstenite::Connector {
     tokio_tungstenite::Connector::NativeTls(native_tls_connector())
 }
 
-fn native_tls_client() -> hyper::client::Client<hyper_tls::HttpsConnector<HttpConnector>> {
+pub fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>> {
     let mut http = HttpConnector::new();
     http.enforce_http(false);
 
     let tls = native_tls_connector().into();
     let https: hyper_tls::HttpsConnector<HttpConnector> = (http, tls).into();
 
-    hyper::Client::builder().build(https)
+    Client::builder().build(https)
 }
 
-pub fn start_proxy(
+pub fn start_proxy<C>(
     ca: impl CertificateAuthority,
+    client: Client<C>,
+    websocket_connector: tokio_tungstenite::Connector,
 ) -> Result<
     (
         SocketAddr,
@@ -143,18 +186,20 @@ pub fn start_proxy(
         Sender<()>,
     ),
     Box<dyn std::error::Error>,
-> {
+>
+where
+    C: Connect + Clone + Send + Sync + 'static,
+{
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     let http_handler = TestHttpHandler::new();
     let websocket_handler = TestWebSocketHandler::new();
-    let websocket_connector = tokio_tungstenite_connector();
 
     let proxy = ProxyBuilder::new()
         .with_listener(listener)
-        .with_client(native_tls_client())
+        .with_client(client)
         .with_ca(ca)
         .with_http_handler(http_handler.clone())
         .with_websocket_handler(websocket_handler.clone())
