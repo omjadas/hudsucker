@@ -56,42 +56,42 @@ tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite" }
 
 [features]
 decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
-default = ["decoder", "rcgen-certs", "rustls-client"]
-full = ["decoder", "http2", "native-tls-client", "openssl-certs", "rcgen-certs", "rustls-client"]
+default = ["decoder", "rcgen-ca", "rustls-client"]
+full = ["decoder", "http2", "native-tls-client", "openssl-ca", "rcgen-ca", "rustls-client"]
 http2 = ["hyper/http2", "hyper-rustls?/http2"]
 native-tls-client = ["dep:hyper-tls", "tokio-tungstenite/native-tls"]
-openssl-certs = ["dep:openssl", "dep:moka"]
-rcgen-certs = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
+openssl-ca = ["dep:openssl", "dep:moka"]
+rcgen-ca = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
 rustls-client = ["dep:hyper-rustls", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [[example]]
 name = "log"
-required-features = ["rcgen-certs", "rustls-client"]
+required-features = ["rcgen-ca", "rustls-client"]
 
 [[example]]
 name = "noop"
-required-features = ["rcgen-certs", "rustls-client"]
+required-features = ["rcgen-ca", "rustls-client"]
 
 [[example]]
 name = "openssl"
-required-features = ["openssl-certs", "rustls-client"]
+required-features = ["openssl-ca", "rustls-client"]
 
 [[test]]
 name = "openssl_ca"
-required-features = ["decoder", "openssl-certs", "native-tls-client", "rustls-client"]
+required-features = ["decoder", "openssl-ca", "native-tls-client", "rustls-client"]
 
 [[test]]
 name = "rcgen_ca"
-required-features = ["decoder", "rcgen-certs", "native-tls-client", "rustls-client"]
+required-features = ["decoder", "rcgen-ca", "native-tls-client", "rustls-client"]
 
 [[test]]
 name = "websocket"
-required-features = ["decoder", "rcgen-certs", "native-tls-client", "rustls-client"]
+required-features = ["decoder", "rcgen-ca", "native-tls-client", "rustls-client"]
 
 [[bench]]
 name = "certificate_authorities"
 harness = false
-required-features = ["openssl-certs", "rcgen-certs"]
+required-features = ["openssl-ca", "rcgen-ca"]
 
 [[bench]]
 name = "decoder"
@@ -101,7 +101,7 @@ required-features = ["decoder"]
 [[bench]]
 name = "proxy"
 harness = false
-required-features = ["rcgen-certs", "rustls-client"]
+required-features = ["rcgen-ca", "rustls-client"]
 
 [profile.bench]
 lto = true

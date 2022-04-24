@@ -1,6 +1,6 @@
-#[cfg(feature = "openssl-certs")]
+#[cfg(feature = "openssl-ca")]
 mod openssl_authority;
-#[cfg(feature = "rcgen-certs")]
+#[cfg(feature = "rcgen-ca")]
 mod rcgen_authority;
 
 use async_trait::async_trait;
@@ -8,9 +8,9 @@ use http::uri::Authority;
 use std::sync::Arc;
 use tokio_rustls::rustls::ServerConfig;
 
-#[cfg(feature = "openssl-certs")]
+#[cfg(feature = "openssl-ca")]
 pub use openssl_authority::*;
-#[cfg(feature = "rcgen-certs")]
+#[cfg(feature = "rcgen-ca")]
 pub use rcgen_authority::*;
 
 const TTL_SECS: i64 = 365 * 24 * 60 * 60;

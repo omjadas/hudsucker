@@ -12,8 +12,8 @@
 //! - `http2`: Enables HTTP/2 support.
 //! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers (enabled by default).
 //! - `native-tls-client`: Enables [`ProxyBuilder::with_native_tls_client`].
-//! - `openssl-certs`: Enables [`certificate_authority::OpensslAuthority`].
-//! - `rcgen-certs`: Enables [`certificate_authority::RcgenAuthority`] (enabled by default).
+//! - `openssl-ca`: Enables [`certificate_authority::OpensslAuthority`].
+//! - `rcgen-ca`: Enables [`certificate_authority::RcgenAuthority`] (enabled by default).
 //! - `rustls-client`: Enables [`ProxyBuilder::with_rustls_client`] (enabled by default).
 
 #[cfg(feature = "decoder")]
@@ -33,7 +33,7 @@ pub(crate) use rewind::Rewind;
 
 pub use async_trait;
 pub use hyper;
-#[cfg(feature = "openssl-certs")]
+#[cfg(feature = "openssl-ca")]
 pub use openssl;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite;

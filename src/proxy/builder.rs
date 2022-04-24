@@ -21,7 +21,7 @@ use tokio_tungstenite::Connector;
 /// # Examples
 ///
 /// ```rust
-/// # #[cfg(all(feature = "rcgen-certs", feature = "rustls-client"))]
+/// # #[cfg(all(feature = "rcgen-ca", feature = "rustls-client"))]
 /// # {
 /// use hudsucker::ProxyBuilder;
 /// # use hudsucker::certificate_authority::RcgenAuthority;

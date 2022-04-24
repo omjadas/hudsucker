@@ -25,7 +25,7 @@ pub use builder::ProxyBuilder;
 /// # use rustls_pemfile as pemfile;
 /// # use tokio_rustls::rustls;
 /// #
-/// # #[cfg(all(feature = "rcgen-certs", feature = "rustls-client"))]
+/// # #[cfg(all(feature = "rcgen-ca", feature = "rustls-client"))]
 /// # #[tokio::main]
 /// # async fn main() {
 /// # use hudsucker::certificate_authority::RcgenAuthority;
@@ -65,7 +65,7 @@ pub use builder::ProxyBuilder;
 /// stop.send(()).unwrap();
 /// # }
 /// #
-/// # #[cfg(not(all(feature = "rcgen-certs", feature = "rustls-client")))]
+/// # #[cfg(not(all(feature = "rcgen-ca", feature = "rustls-client")))]
 /// # fn main() {}
 /// ```
 pub struct Proxy<C, CA, H, W>

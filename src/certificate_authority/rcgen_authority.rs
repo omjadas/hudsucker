@@ -38,7 +38,7 @@ use tokio_rustls::rustls::{self, ServerConfig};
 ///
 /// let ca = RcgenAuthority::new(private_key, ca_cert, 1_000).unwrap();
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "rcgen-certs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "rcgen-ca")))]
 #[derive(Clone)]
 pub struct RcgenAuthority {
     private_key: rustls::PrivateKey,

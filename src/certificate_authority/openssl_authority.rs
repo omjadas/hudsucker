@@ -38,7 +38,7 @@ use tokio_rustls::rustls::{self, ServerConfig};
 ///
 /// let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "openssl-certs")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "openssl-ca")))]
 #[derive(Clone)]
 pub struct OpensslAuthority {
     pkey: PKey<Private>,
