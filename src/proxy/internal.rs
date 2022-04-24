@@ -130,8 +130,8 @@ where
                         parts
                             .uri
                             .path_and_query()
-                            .unwrap_or(&PathAndQuery::from_static("/"))
-                            .clone(),
+                            .map(Clone::clone)
+                            .unwrap_or_else(|| PathAndQuery::from_static("/")),
                     )
                     .build()
                     .expect("Failed to build URI for websocket connection");
@@ -179,16 +179,11 @@ where
         trace_future(span, fut).await
     }
 
-    async fn process_connect(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    async fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let span = span_from_request!("process_connect", req, self.client_addr);
-        let authority = req
-            .uri()
-            .authority()
-            .expect("URI does not contain authority")
-            .clone();
 
         let fut = async move {
-            match hyper::upgrade::on(req).await {
+            match hyper::upgrade::on(&mut req).await {
                 Ok(mut upgraded) => {
                     let mut buffer = [0; 4];
                     let bytes_read = match upgraded.read(&mut buffer).await {
@@ -209,7 +204,12 @@ where
                             error!("Websocket connect error: {}", e);
                         }
                     } else if bytes_read >= 2 && buffer[..2] == *b"\x16\x03" {
-                        let server_config = self.ca.gen_server_config(&authority).await;
+                        let authority = req
+                            .uri()
+                            .authority()
+                            .expect("URI does not contain authority");
+
+                        let server_config = self.ca.gen_server_config(authority).await;
                         let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
                             Ok(stream) => stream,
                             Err(e) => {
