@@ -81,7 +81,7 @@ impl RcgenAuthority {
 
         params
             .subject_alt_names
-            .push(SanType::DnsName(authority.host().to_string()));
+            .push(SanType::DnsName(authority.host().to_owned()));
 
         let key_pair = KeyPair::from_der(&self.private_key.0).expect("Failed to parse private key");
         params.alg = key_pair

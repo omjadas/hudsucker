@@ -5,8 +5,12 @@ use crate::{
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
 use hyper::{
-    client::connect::Connect, header::HeaderValue, server::conn::Http, service::service_fn,
-    upgrade::Upgraded, Body, Client, Method, Request, Response, Uri,
+    client::connect::Connect,
+    header::{Entry, HeaderValue},
+    server::conn::Http,
+    service::service_fn,
+    upgrade::Upgraded,
+    Body, Client, Method, Request, Response, Uri,
 };
 use std::{future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -276,8 +280,7 @@ where
                     .headers
                     .get(hyper::header::HOST)
                     .expect("Host is a required header")
-                    .to_str()
-                    .expect("Failed to convert host to str");
+                    .as_bytes();
 
                 parts.uri = {
                     let mut parts = parts.uri.into_parts();
@@ -346,14 +349,14 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     req.headers_mut().remove(hyper::header::HOST);
 
     // HTTP/2.0 supports multiple cookie headers, but HTTP/1.x only supports one.
-    if let hyper::header::Entry::Occupied(cookies) = req.headers_mut().entry(hyper::header::COOKIE)
-    {
-        let joined_cookies: String = cookies
-            .remove_entry_mult()
-            .1
-            .map(|c| c.to_str().unwrap_or("").to_string())
-            .collect::<Vec<_>>()
-            .join("; ");
+    if let Entry::Occupied(cookies) = req.headers_mut().entry(hyper::header::COOKIE) {
+        let joined_cookies = bstr::join(
+            b"; ",
+            cookies
+                .remove_entry_mult()
+                .1
+                .map(|c| c.as_bytes().to_owned()),
+        );
 
         req.headers_mut().insert(
             hyper::header::COOKIE,
