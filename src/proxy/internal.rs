@@ -3,7 +3,7 @@ use crate::{
     Rewind, WebSocketContext, WebSocketHandler,
 };
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use http::uri::PathAndQuery;
+use http::uri::{Authority, Scheme};
 use hyper::{
     client::connect::Connect, header::HeaderValue, server::conn::Http, service::service_fn,
     upgrade::Upgraded, Body, Client, Method, Request, Response, Uri,
@@ -105,60 +105,45 @@ where
             };
 
             if hyper_tungstenite::is_upgrade_request(&req) {
-                let (parts, body) = req.into_parts();
+                let mut req = {
+                    let (mut parts, body) = req.into_parts();
 
-                let scheme = if parts.uri.scheme().unwrap_or(&http::uri::Scheme::HTTP)
-                    == &http::uri::Scheme::HTTP
-                {
-                    "ws"
-                } else {
-                    "wss"
+                    let authority = parts
+                        .uri
+                        .authority()
+                        .expect("Authority not included in request");
+
+                    let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
+                    parts.headers.append(hyper::header::HOST, host);
+
+                    parts.uri = {
+                        let mut parts = parts.uri.into_parts();
+
+                        parts.scheme = if parts.scheme.unwrap_or(Scheme::HTTP) == Scheme::HTTP {
+                            Some("ws".try_into().expect("Failed to convert scheme"))
+                        } else {
+                            Some("wss".try_into().expect("Failed to convert scheme"))
+                        };
+
+                        Uri::from_parts(parts).expect("Failed to build URI")
+                    };
+
+                    Request::from_parts(parts, body)
                 };
 
-                let authority = parts
-                    .uri
-                    .authority()
-                    .expect("Authority not included in request")
-                    .clone();
-
-                let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
-
-                let uri = Uri::builder()
-                    .scheme(scheme)
-                    .authority(authority)
-                    .path_and_query(
-                        parts
-                            .uri
-                            .path_and_query()
-                            .map(Clone::clone)
-                            .unwrap_or_else(|| PathAndQuery::from_static("/")),
-                    )
-                    .build()
-                    .expect("Failed to build URI for websocket connection");
-
-                let ws_req = {
-                    let mut builder = Request::builder()
-                        .version(parts.version)
-                        .method(parts.method.clone())
-                        .uri(uri);
-
-                    if let Some(headers) = builder.headers_mut() {
-                        *headers = parts.headers.clone();
-                        headers.append(hyper::header::HOST, host);
-                    }
-
-                    builder.body(()).expect("Failed to build websocket request")
-                };
-
-                let req = Request::from_parts(parts, body);
                 let span = span_from_request!("websocket", req, self.client_addr);
-                let (res, websocket) =
-                    hyper_tungstenite::upgrade(req, None).expect("Request has missing headers");
+                let (res, websocket) = hyper_tungstenite::upgrade(&mut req, None)
+                    .expect("Request has missing headers");
+
+                let req = {
+                    let (parts, _) = req.into_parts();
+                    Request::from_parts(parts, ())
+                };
 
                 let fut = async move {
                     match websocket.await {
                         Ok(ws) => {
-                            if let Err(e) = self.handle_websocket(ws, ws_req).await {
+                            if let Err(e) = self.handle_websocket(ws, req).await {
                                 error!("Failed to handle websocket: {:?}", e);
                             }
                         }
@@ -200,7 +185,7 @@ where
                     );
 
                     if bytes_read == 4 && buffer == *b"GET " {
-                        if let Err(e) = self.serve_stream(upgraded, http::uri::Scheme::HTTP).await {
+                        if let Err(e) = self.serve_stream(upgraded, Scheme::HTTP).await {
                             error!("Websocket connect error: {}", e);
                         }
                     } else if bytes_read >= 2 && buffer[..2] == *b"\x16\x03" {
@@ -218,7 +203,7 @@ where
                             }
                         };
 
-                        if let Err(e) = self.serve_stream(stream, http::uri::Scheme::HTTPS).await {
+                        if let Err(e) = self.serve_stream(stream, Scheme::HTTPS).await {
                             if !e.to_string().starts_with("error shutting down connection") {
                                 error!("HTTPS connect error: {}", e);
                             }
@@ -283,7 +268,7 @@ where
         Ok(())
     }
 
-    async fn serve_stream<I>(self, stream: I, scheme: http::uri::Scheme) -> Result<(), hyper::Error>
+    async fn serve_stream<I>(self, stream: I, scheme: Scheme) -> Result<(), hyper::Error>
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
@@ -300,18 +285,11 @@ where
                     .expect("Failed to convert host to str");
 
                 parts.uri = {
-                    let parts = parts.uri.into_parts();
-
-                    Uri::builder()
-                        .scheme(scheme.clone())
-                        .authority(authority)
-                        .path_and_query(
-                            parts
-                                .path_and_query
-                                .unwrap_or_else(|| PathAndQuery::from_static("/")),
-                        )
-                        .build()
-                        .expect("Failed to build URI")
+                    let mut parts = parts.uri.into_parts();
+                    parts.scheme = Some(scheme.clone());
+                    parts.authority =
+                        Some(Authority::try_from(authority).expect("Failed to parse authority"));
+                    Uri::from_parts(parts).expect("Failed to build URI")
                 };
 
                 req = Request::from_parts(parts, body);
