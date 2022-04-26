@@ -19,6 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
+bstr = { version = "0.2.1", optional = true }
 bytes = "1.0.0"
 futures = "0.3.11"
 http = "0.2.0"
@@ -55,7 +56,7 @@ x509-parser = "0.13.1"
 tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite" }
 
 [features]
-decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
+decoder = ["dep:async-compression", "dep:bstr", "dep:tokio-util", "tokio/io-util"]
 default = ["decoder", "rcgen-ca", "rustls-client"]
 full = ["decoder", "http2", "native-tls-client", "openssl-ca", "rcgen-ca", "rustls-client"]
 http2 = ["hyper/http2", "hyper-rustls?/http2"]

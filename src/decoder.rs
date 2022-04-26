@@ -1,9 +1,10 @@
 use crate::Error;
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
+use bstr::ByteSlice;
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use hyper::{
-    header::{HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
+    header::{Entry, HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
     Body, Error as HyperError, Request, Response,
 };
 use std::{
@@ -35,8 +36,8 @@ enum Decoder {
 }
 
 impl Decoder {
-    pub fn decode(self, encoding: &str) -> Result<Self, Error> {
-        if encoding == "identity" {
+    pub fn decode(self, encoding: &[u8]) -> Result<Self, Error> {
+        if encoding == b"identity" {
             return Ok(self);
         }
 
@@ -46,10 +47,10 @@ impl Decoder {
         };
 
         let decoder: Box<dyn AsyncRead + Send + Unpin> = match encoding {
-            "gzip" | "x-gzip" => Box::new(GzipDecoder::new(reader)),
-            "deflate" => Box::new(ZlibDecoder::new(reader)),
-            "br" => Box::new(BrotliDecoder::new(reader)),
-            "zstd" => Box::new(ZstdDecoder::new(reader)),
+            b"gzip" | b"x-gzip" => Box::new(GzipDecoder::new(reader)),
+            b"deflate" => Box::new(ZlibDecoder::new(reader)),
+            b"br" => Box::new(BrotliDecoder::new(reader)),
+            b"zstd" => Box::new(ZstdDecoder::new(reader)),
             _ => return Err(Error::Decode),
         };
 
@@ -66,23 +67,19 @@ impl From<Decoder> for Body {
     }
 }
 
-fn extract_encodings(headers: &mut HeaderMap<HeaderValue>) -> Result<Vec<String>, Error> {
-    let mut encodings: Vec<String> = vec![];
+fn extract_encodings(headers: &mut HeaderMap<HeaderValue>) -> Vec<Vec<u8>> {
+    let mut encodings = vec![];
 
-    for val in headers.get_all(CONTENT_ENCODING) {
-        match val.to_str() {
-            Ok(val) => {
-                encodings.extend(val.split(',').map(|v| v.trim().to_owned()));
-            }
-            Err(_) => return Err(Error::Decode),
+    if let Entry::Occupied(entry) = headers.entry(CONTENT_ENCODING) {
+        for val in entry.remove_entry_mult().1 {
+            encodings.extend(val.as_bytes().split_str(b",").map(|v| v.trim().to_owned()));
         }
     }
 
-    headers.remove(CONTENT_ENCODING);
-    Ok(encodings)
+    encodings
 }
 
-fn decode_body(mut encodings: Vec<String>, body: Body) -> Result<Body, Error> {
+fn decode_body(mut encodings: Vec<Vec<u8>>, body: Body) -> Result<Body, Error> {
     let mut decoder = Decoder::Body(body);
 
     while let Some(encoding) = encodings.pop() {
@@ -135,17 +132,15 @@ fn decode_body(mut encodings: Vec<String>, body: Body) -> Result<Body, Error> {
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
     let (mut parts, body) = req.into_parts();
-    let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;
+    let encodings = extract_encodings(&mut parts.headers);
 
     if encodings.is_empty() {
         return Ok(Request::from_parts(parts, body));
     }
 
     if let Some(val) = parts.headers.remove(CONTENT_LENGTH) {
-        match val.to_str() {
-            Ok("0") => return Ok(Request::from_parts(parts, body)),
-            Err(_) => return Err(Error::Decode),
-            _ => (),
+        if let b"0" = val.as_bytes() {
+            return Ok(Request::from_parts(parts, body));
         }
     }
 
@@ -194,17 +189,15 @@ pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
     let (mut parts, body) = res.into_parts();
-    let encodings: Vec<String> = extract_encodings(&mut parts.headers)?;
+    let encodings = extract_encodings(&mut parts.headers);
 
     if encodings.is_empty() {
         return Ok(Response::from_parts(parts, body));
     }
 
     if let Some(val) = parts.headers.remove(CONTENT_LENGTH) {
-        match val.to_str() {
-            Ok("0") => return Ok(Response::from_parts(parts, body)),
-            Err(_) => return Err(Error::Decode),
-            _ => (),
+        if let b"0" = val.as_bytes() {
+            return Ok(Response::from_parts(parts, body));
         }
     }
 
@@ -222,7 +215,7 @@ mod tests {
         fn no_headers() {
             let mut headers = HeaderMap::new();
 
-            assert_eq!(extract_encodings(&mut headers).unwrap().len(), 0);
+            assert_eq!(extract_encodings(&mut headers).len(), 0);
         }
 
         #[test]
@@ -230,7 +223,7 @@ mod tests {
             let mut headers = HeaderMap::new();
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
 
-            assert_eq!(extract_encodings(&mut headers).unwrap(), vec!["gzip"]);
+            assert_eq!(extract_encodings(&mut headers), vec![b"gzip"]);
         }
 
         #[test]
@@ -239,8 +232,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip, deflate"));
 
             assert_eq!(
-                extract_encodings(&mut headers).unwrap(),
-                vec!["gzip", "deflate"]
+                extract_encodings(&mut headers),
+                vec![&b"gzip"[..], &b"deflate"[..]]
             );
         }
 
@@ -251,8 +244,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("deflate"));
 
             assert_eq!(
-                extract_encodings(&mut headers).unwrap(),
-                vec!["gzip", "deflate"]
+                extract_encodings(&mut headers),
+                vec![&b"gzip"[..], &b"deflate"[..]]
             );
         }
 
@@ -263,8 +256,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("br, zstd"));
 
             assert_eq!(
-                extract_encodings(&mut headers).unwrap(),
-                vec!["gzip", "deflate", "br", "zstd"]
+                extract_encodings(&mut headers),
+                vec![&b"gzip"[..], &b"deflate"[..], &b"br"[..], &b"zstd"[..]]
             );
         }
     }
@@ -291,7 +284,7 @@ mod tests {
             let body = Body::from(content);
 
             assert_eq!(
-                &to_bytes(decode_body(vec!["identity".to_owned()], body).unwrap())
+                &to_bytes(decode_body(vec![b"identity"[..].to_owned()], body).unwrap())
                     .await
                     .unwrap()[..],
                 content.as_bytes()
@@ -305,7 +298,7 @@ mod tests {
             let body = Body::wrap_stream(ReaderStream::new(encoder));
 
             assert_eq!(
-                &to_bytes(decode_body(vec!["gzip".to_owned()], body).unwrap())
+                &to_bytes(decode_body(vec![b"gzip"[..].to_owned()], body).unwrap())
                     .await
                     .unwrap()[..],
                 content
@@ -320,9 +313,11 @@ mod tests {
             let body = Body::wrap_stream(ReaderStream::new(encoder));
 
             assert_eq!(
-                &to_bytes(decode_body(vec!["gzip".to_owned(), "br".to_owned()], body).unwrap())
-                    .await
-                    .unwrap()[..],
+                &to_bytes(
+                    decode_body(vec![b"gzip"[..].to_owned(), b"br"[..].to_owned()], body).unwrap()
+                )
+                .await
+                .unwrap()[..],
                 content
             );
         }
@@ -331,7 +326,7 @@ mod tests {
         fn invalid_encoding() {
             let body = Body::empty();
 
-            assert!(decode_body(vec!["invalid".to_owned()], body).is_err());
+            assert!(decode_body(vec![b"invalid"[..].to_owned()], body).is_err());
         }
     }
 
