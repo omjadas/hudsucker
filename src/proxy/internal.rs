@@ -106,7 +106,7 @@ where
 
             if hyper_tungstenite::is_upgrade_request(&req) {
                 let mut req = {
-                    let (mut parts, body) = req.into_parts();
+                    let (mut parts, _) = req.into_parts();
 
                     let authority = parts
                         .uri
@@ -128,17 +128,12 @@ where
                         Uri::from_parts(parts).expect("Failed to build URI")
                     };
 
-                    Request::from_parts(parts, body)
+                    Request::from_parts(parts, ())
                 };
 
                 let span = span_from_request!("websocket", req, self.client_addr);
                 let (res, websocket) = hyper_tungstenite::upgrade(&mut req, None)
                     .expect("Request has missing headers");
-
-                let req = {
-                    let (parts, _) = req.into_parts();
-                    Request::from_parts(parts, ())
-                };
 
                 let fut = async move {
                     match websocket.await {
