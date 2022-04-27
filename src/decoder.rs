@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use hyper::{
-    header::{Entry, HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
+    header::{HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
     Body, Error as HyperError, Request, Response,
 };
 use std::{
@@ -67,23 +67,19 @@ impl From<Decoder> for Body {
     }
 }
 
-fn extract_encodings(headers: &mut HeaderMap<HeaderValue>) -> Vec<Vec<u8>> {
-    let mut encodings = vec![];
-
-    if let Entry::Occupied(entry) = headers.entry(CONTENT_ENCODING) {
-        for val in entry.remove_entry_mult().1 {
-            encodings.extend(val.as_bytes().split_str(b",").map(|v| v.trim().to_owned()));
-        }
-    }
-
-    encodings
+fn extract_encodings(headers: &HeaderMap<HeaderValue>) -> Vec<&[u8]> {
+    headers
+        .get_all(CONTENT_ENCODING)
+        .iter()
+        .flat_map(|val| val.as_bytes().split_str(b",").map(|v| v.trim()))
+        .collect()
 }
 
-fn decode_body(mut encodings: Vec<Vec<u8>>, body: Body) -> Result<Body, Error> {
+fn decode_body(mut encodings: Vec<&[u8]>, body: Body) -> Result<Body, Error> {
     let mut decoder = Decoder::Body(body);
 
     while let Some(encoding) = encodings.pop() {
-        decoder = decoder.decode(&encoding)?;
+        decoder = decoder.decode(encoding)?;
     }
 
     Ok(decoder.into())
@@ -130,21 +126,27 @@ fn decode_body(mut encodings: Vec<Vec<u8>>, body: Body) -> Result<Body, Error> {
 /// }
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
-pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
-    let (mut parts, body) = req.into_parts();
-    let encodings = extract_encodings(&mut parts.headers);
-
-    if encodings.is_empty() {
-        return Ok(Request::from_parts(parts, body));
+pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
+    if !req.headers().contains_key(CONTENT_ENCODING) {
+        return Ok(req);
     }
 
-    if let Some(val) = parts.headers.remove(CONTENT_LENGTH) {
+    if let Some(val) = req.headers_mut().remove(CONTENT_LENGTH) {
         if let b"0" = val.as_bytes() {
-            return Ok(Request::from_parts(parts, body));
+            return Ok(req);
         }
     }
 
-    Ok(Request::from_parts(parts, decode_body(encodings, body)?))
+    let (mut parts, body) = req.into_parts();
+
+    let body = {
+        let encodings = extract_encodings(&parts.headers);
+        decode_body(encodings, body)?
+    };
+
+    parts.headers.remove(CONTENT_ENCODING);
+
+    Ok(Request::from_parts(parts, body))
 }
 
 /// Decode the body of a response.
@@ -187,21 +189,27 @@ pub fn decode_request(req: Request<Body>) -> Result<Request<Body>, Error> {
 ///     }
 /// }
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
-pub fn decode_response(res: Response<Body>) -> Result<Response<Body>, Error> {
-    let (mut parts, body) = res.into_parts();
-    let encodings = extract_encodings(&mut parts.headers);
-
-    if encodings.is_empty() {
-        return Ok(Response::from_parts(parts, body));
+pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error> {
+    if !res.headers().contains_key(CONTENT_ENCODING) {
+        return Ok(res);
     }
 
-    if let Some(val) = parts.headers.remove(CONTENT_LENGTH) {
+    if let Some(val) = res.headers_mut().remove(CONTENT_LENGTH) {
         if let b"0" = val.as_bytes() {
-            return Ok(Response::from_parts(parts, body));
+            return Ok(res);
         }
     }
 
-    Ok(Response::from_parts(parts, decode_body(encodings, body)?))
+    let (mut parts, body) = res.into_parts();
+
+    let body = {
+        let encodings = extract_encodings(&parts.headers);
+        decode_body(encodings, body)?
+    };
+
+    parts.headers.remove(CONTENT_ENCODING);
+
+    Ok(Response::from_parts(parts, body))
 }
 
 #[cfg(test)]
@@ -284,7 +292,7 @@ mod tests {
             let body = Body::from(content);
 
             assert_eq!(
-                &to_bytes(decode_body(vec![b"identity"[..].to_owned()], body).unwrap())
+                &to_bytes(decode_body(vec![&b"identity"[..]], body).unwrap())
                     .await
                     .unwrap()[..],
                 content.as_bytes()
@@ -298,7 +306,7 @@ mod tests {
             let body = Body::wrap_stream(ReaderStream::new(encoder));
 
             assert_eq!(
-                &to_bytes(decode_body(vec![b"gzip"[..].to_owned()], body).unwrap())
+                &to_bytes(decode_body(vec![&b"gzip"[..]], body).unwrap())
                     .await
                     .unwrap()[..],
                 content
@@ -313,11 +321,9 @@ mod tests {
             let body = Body::wrap_stream(ReaderStream::new(encoder));
 
             assert_eq!(
-                &to_bytes(
-                    decode_body(vec![b"gzip"[..].to_owned(), b"br"[..].to_owned()], body).unwrap()
-                )
-                .await
-                .unwrap()[..],
+                &to_bytes(decode_body(vec![&b"gzip"[..], &b"br"[..]], body).unwrap())
+                    .await
+                    .unwrap()[..],
                 content
             );
         }
@@ -326,7 +332,7 @@ mod tests {
         fn invalid_encoding() {
             let body = Body::empty();
 
-            assert!(decode_body(vec![b"invalid"[..].to_owned()], body).is_err());
+            assert!(decode_body(vec![&b"invalid"[..]], body).is_err());
         }
     }
 
