@@ -1,9 +1,7 @@
 use async_http_proxy::http_connect_tokio;
 use futures::{SinkExt, StreamExt};
 use hudsucker::{
-    certificate_authority::RcgenAuthority,
-    rustls,
-    tokio_tungstenite::tungstenite::Message,
+    certificate_authority::RcgenAuthority, rustls, tokio_tungstenite::tungstenite::Message,
 };
 use rustls_pemfile as pemfile;
 use std::sync::atomic::Ordering;
