@@ -67,18 +67,21 @@ impl From<Decoder> for Body {
     }
 }
 
-fn extract_encodings(headers: &HeaderMap<HeaderValue>) -> Vec<&[u8]> {
+fn extract_encodings(headers: &HeaderMap<HeaderValue>) -> impl Iterator<Item = &[u8]> {
     headers
         .get_all(CONTENT_ENCODING)
         .iter()
-        .flat_map(|val| val.as_bytes().split_str(b",").map(|v| v.trim()))
-        .collect()
+        .rev()
+        .flat_map(|val| val.as_bytes().rsplit_str(b",").map(|v| v.trim()))
 }
 
-fn decode_body(mut encodings: Vec<&[u8]>, body: Body) -> Result<Body, Error> {
+fn decode_body<'a>(
+    encodings: impl IntoIterator<Item = &'a [u8]>,
+    body: Body,
+) -> Result<Body, Error> {
     let mut decoder = Decoder::Body(body);
 
-    while let Some(encoding) = encodings.pop() {
+    for encoding in encodings {
         decoder = decoder.decode(encoding)?;
     }
 
@@ -221,9 +224,9 @@ mod tests {
 
         #[test]
         fn no_headers() {
-            let mut headers = HeaderMap::new();
+            let headers = HeaderMap::new();
 
-            assert_eq!(extract_encodings(&mut headers).len(), 0);
+            assert_eq!(extract_encodings(&headers).count(), 0);
         }
 
         #[test]
@@ -231,7 +234,10 @@ mod tests {
             let mut headers = HeaderMap::new();
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
 
-            assert_eq!(extract_encodings(&mut headers), vec![b"gzip"]);
+            assert_eq!(
+                extract_encodings(&headers).collect::<Vec<_>>(),
+                vec![b"gzip"]
+            );
         }
 
         #[test]
@@ -240,8 +246,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("gzip, deflate"));
 
             assert_eq!(
-                extract_encodings(&mut headers),
-                vec![&b"gzip"[..], &b"deflate"[..]]
+                extract_encodings(&headers).collect::<Vec<_>>(),
+                vec![&b"deflate"[..], &b"gzip"[..]]
             );
         }
 
@@ -252,8 +258,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("deflate"));
 
             assert_eq!(
-                extract_encodings(&mut headers),
-                vec![&b"gzip"[..], &b"deflate"[..]]
+                extract_encodings(&headers).collect::<Vec<_>>(),
+                vec![&b"deflate"[..], &b"gzip"[..]]
             );
         }
 
@@ -264,8 +270,8 @@ mod tests {
             headers.append(CONTENT_ENCODING, HeaderValue::from_static("br, zstd"));
 
             assert_eq!(
-                extract_encodings(&mut headers),
-                vec![&b"gzip"[..], &b"deflate"[..], &b"br"[..], &b"zstd"[..]]
+                extract_encodings(&headers).collect::<Vec<_>>(),
+                vec![&b"zstd"[..], &b"br"[..], &b"deflate"[..], &b"gzip"[..]]
             );
         }
     }
@@ -321,7 +327,7 @@ mod tests {
             let body = Body::wrap_stream(ReaderStream::new(encoder));
 
             assert_eq!(
-                &to_bytes(decode_body(vec![&b"gzip"[..], &b"br"[..]], body).unwrap())
+                &to_bytes(decode_body(vec![&b"br"[..], &b"gzip"[..]], body).unwrap())
                     .await
                     .unwrap()[..],
                 content
