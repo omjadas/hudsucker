@@ -2,7 +2,7 @@ use crate::Error;
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
 use bstr::ByteSlice;
 use bytes::Bytes;
-use futures::{Stream, TryStreamExt};
+use futures::Stream;
 use hyper::{
     header::{HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
     Body, Error as HyperError, Request, Response,
@@ -42,7 +42,7 @@ impl Decoder {
         }
 
         let reader: Box<dyn AsyncBufRead + Send + Unpin> = match self {
-            Self::Body(body) => Box::new(StreamReader::new(IoStream(body.into_stream()))),
+            Self::Body(body) => Box::new(StreamReader::new(IoStream(body))),
             Self::Decoder(decoder) => Box::new(BufReader::new(decoder)),
         };
 
@@ -135,7 +135,7 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
     }
 
     if let Some(val) = req.headers_mut().remove(CONTENT_LENGTH) {
-        if let b"0" = val.as_bytes() {
+        if val == "0" {
             return Ok(req);
         }
     }
@@ -191,6 +191,7 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///         res
 ///     }
 /// }
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error> {
     if !res.headers().contains_key(CONTENT_ENCODING) {
@@ -198,7 +199,7 @@ pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error>
     }
 
     if let Some(val) = res.headers_mut().remove(CONTENT_LENGTH) {
-        if let b"0" = val.as_bytes() {
+        if val == "0" {
             return Ok(res);
         }
     }
@@ -360,6 +361,7 @@ mod tests {
             let req = decode_request(req).unwrap();
 
             assert!(!req.headers().contains_key(CONTENT_LENGTH));
+            assert!(!req.headers().contains_key(CONTENT_ENCODING));
             assert_eq!(&to_bytes(req.into_body()).await.unwrap()[..], content);
         }
     }
@@ -382,6 +384,7 @@ mod tests {
             let res = decode_response(res).unwrap();
 
             assert!(!res.headers().contains_key(CONTENT_LENGTH));
+            assert!(!res.headers().contains_key(CONTENT_ENCODING));
             assert_eq!(&to_bytes(res.into_body()).await.unwrap()[..], content);
         }
     }
