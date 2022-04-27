@@ -348,25 +348,15 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
     req.headers_mut().remove(hyper::header::HOST);
 
-    // HTTP/2.0 supports multiple cookie headers, but HTTP/1.x only supports one.
-    if let Entry::Occupied(cookies) = req.headers_mut().entry(hyper::header::COOKIE) {
-        let joined_cookies = bstr::join(
-            b"; ",
-            cookies
-                .remove_entry_mult()
-                .1
-                .map(|c| c.as_bytes().to_owned()),
-        );
-
-        req.headers_mut().insert(
-            hyper::header::COOKIE,
-            joined_cookies.try_into().expect("Failed to join cookies"),
-        );
+    // HTTP/2 supports multiple cookie headers, but HTTP/1.x only supports one.
+    if let Entry::Occupied(mut cookies) = req.headers_mut().entry(hyper::header::COOKIE) {
+        let joined_cookies = bstr::join(b"; ", cookies.iter());
+        cookies.insert(joined_cookies.try_into().expect("Failed to join cookies"));
     }
 
-    let (mut parts, body) = req.into_parts();
-    parts.version = hyper::Version::HTTP_11;
-    Request::from_parts(parts, body)
+    *req.version_mut() = hyper::Version::HTTP_11;
+
+    req
 }
 
 #[cfg(test)]
@@ -399,6 +389,11 @@ mod tests {
                 .unwrap();
 
             let req = normalize_request(req);
+
+            assert_eq!(
+                req.headers().get_all(hyper::header::COOKIE).iter().count(),
+                1
+            );
 
             assert_eq!(
                 req.headers().get(hyper::header::COOKIE),
