@@ -18,7 +18,7 @@ fn build_ca() -> OpensslAuthority {
 
 #[tokio::test]
 async fn https_rustls() {
-    let (proxy_addr, http_handler, _, stop_proxy) = common::start_proxy(
+    let (proxy_addr, (http_handler, _), stop_proxy) = common::start_proxy(
         build_ca(),
         common::rustls_client(),
         common::rustls_websocket_connector(),
@@ -44,7 +44,7 @@ async fn https_rustls() {
 
 #[tokio::test]
 async fn https_native_tls() {
-    let (proxy_addr, http_handler, _, stop_proxy) = common::start_proxy(
+    let (proxy_addr, (http_handler, _), stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
@@ -70,7 +70,7 @@ async fn https_native_tls() {
 
 #[tokio::test]
 async fn decodes_response() {
-    let (proxy_addr, _, _, stop_proxy) = common::start_proxy(
+    let (proxy_addr, _, stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),

@@ -174,19 +174,13 @@ pub fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>> {
     Client::builder().build(https)
 }
 
+type TestHandlers = (TestHttpHandler, TestWebSocketHandler);
+
 pub fn start_proxy<C>(
     ca: impl CertificateAuthority,
     client: Client<C>,
     websocket_connector: tokio_tungstenite::Connector,
-) -> Result<
-    (
-        SocketAddr,
-        TestHttpHandler,
-        TestWebSocketHandler,
-        Sender<()>,
-    ),
-    Box<dyn std::error::Error>,
->
+) -> Result<(SocketAddr, TestHandlers, Sender<()>), Box<dyn std::error::Error>>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
@@ -210,7 +204,7 @@ where
         rx.await.unwrap_or_default();
     }));
 
-    Ok((addr, http_handler, websocket_handler, tx))
+    Ok((addr, (http_handler, websocket_handler), tx))
 }
 
 pub fn start_noop_proxy(

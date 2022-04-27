@@ -1,16 +1,15 @@
-#![allow(unused)]
-
 use async_http_proxy::http_connect_tokio;
 use futures::{SinkExt, StreamExt};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
     rustls,
-    tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message},
+    tokio_tungstenite::tungstenite::Message,
 };
 use rustls_pemfile as pemfile;
 use std::sync::atomic::Ordering;
 use tokio::net::TcpStream;
 
+#[allow(unused)]
 mod common;
 
 fn build_ca() -> RcgenAuthority {
@@ -33,7 +32,7 @@ fn build_ca() -> RcgenAuthority {
 
 #[tokio::test]
 async fn http() {
-    let (proxy_addr, _, websocket_handler, stop_proxy) = common::start_proxy(
+    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
@@ -68,7 +67,7 @@ async fn http() {
 
 #[tokio::test]
 async fn https_rustls() {
-    let (proxy_addr, _, websocket_handler, stop_proxy) = common::start_proxy(
+    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
         build_ca(),
         common::rustls_client(),
         common::rustls_websocket_connector(),
@@ -104,7 +103,7 @@ async fn https_rustls() {
 
 #[tokio::test]
 async fn https_native_tls() {
-    let (proxy_addr, _, websocket_handler, stop_proxy) = common::start_proxy(
+    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
