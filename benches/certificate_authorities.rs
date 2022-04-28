@@ -42,8 +42,8 @@ fn build_openssl_ca(cache_size: u64) -> OpensslAuthority {
 }
 
 fn compare_cas(c: &mut Criterion) {
-    let rcgen_ca = build_rcgen_ca(1000);
-    let openssl_ca = build_openssl_ca(1000);
+    let rcgen_ca = build_rcgen_ca(0);
+    let openssl_ca = build_openssl_ca(0);
     let authority = Authority::from_static("example.com");
     let runtime = runtime();
 
