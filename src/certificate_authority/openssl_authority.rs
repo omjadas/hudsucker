@@ -16,6 +16,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio_rustls::rustls::{self, ServerConfig};
+use tracing::info;
 
 /// Issues certificates for use when communicating with clients.
 ///
@@ -110,8 +111,10 @@ impl OpensslAuthority {
 impl CertificateAuthority for OpensslAuthority {
     async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
         if let Some(server_cfg) = self.cache.get(authority) {
+            info!("Using cached server config");
             return server_cfg;
         }
+        info!("Generating server config");
 
         let certs = vec![self
             .gen_cert(authority)

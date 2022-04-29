@@ -22,7 +22,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message},
     Connector, WebSocketStream,
 };
-use tracing::*;
+use tracing::{error, info_span, Instrument, Span};
 
 async fn trace_future<T>(span: Span, fut: impl Future<Output = T>) -> T {
     fut.instrument(span).await
@@ -109,51 +109,7 @@ where
             };
 
             if hyper_tungstenite::is_upgrade_request(&req) {
-                let mut req = {
-                    let (mut parts, _) = req.into_parts();
-
-                    let authority = parts
-                        .uri
-                        .authority()
-                        .expect("Authority not included in request");
-
-                    let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
-                    parts.headers.append(hyper::header::HOST, host);
-
-                    parts.uri = {
-                        let mut parts = parts.uri.into_parts();
-
-                        parts.scheme = if parts.scheme.unwrap_or(Scheme::HTTP) == Scheme::HTTP {
-                            Some("ws".try_into().expect("Failed to convert scheme"))
-                        } else {
-                            Some("wss".try_into().expect("Failed to convert scheme"))
-                        };
-
-                        Uri::from_parts(parts).expect("Failed to build URI")
-                    };
-
-                    Request::from_parts(parts, ())
-                };
-
-                let span = span_from_request!("websocket", req, self.client_addr);
-                let (res, websocket) = hyper_tungstenite::upgrade(&mut req, None)
-                    .expect("Request has missing headers");
-
-                let fut = async move {
-                    match websocket.await {
-                        Ok(ws) => {
-                            if let Err(e) = self.handle_websocket(ws, req).await {
-                                error!("Failed to handle websocket: {:?}", e);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to upgrade to websocket: {}", e);
-                        }
-                    }
-                };
-
-                spawn_with_trace(span, fut);
-                return Ok(res);
+                return Ok(self.upgrade_websocket(req));
             }
 
             let res = self.client.request(req).await?;
@@ -183,17 +139,22 @@ where
                         bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                     );
 
-                    if bytes_read == 4 && buffer == *b"GET " {
+                    if buffer == *b"GET " {
                         if let Err(e) = self.serve_stream(upgraded, Scheme::HTTP).await {
                             error!("Websocket connect error: {}", e);
                         }
-                    } else if bytes_read >= 2 && buffer[..2] == *b"\x16\x03" {
+                    } else if buffer[..2] == *b"\x16\x03" {
                         let authority = req
                             .uri()
                             .authority()
                             .expect("URI does not contain authority");
 
-                        let server_config = self.ca.gen_server_config(authority).await;
+                        let server_config = trace_future(
+                            info_span!("gen_server_config", %authority),
+                            self.ca.gen_server_config(authority),
+                        )
+                        .await;
+
                         let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
                             Ok(stream) => stream,
                             Err(e) => {
@@ -220,6 +181,55 @@ where
 
         spawn_with_trace(span, fut);
         Ok(Response::new(Body::empty()))
+    }
+
+    fn upgrade_websocket(self, req: Request<Body>) -> Response<Body> {
+        let mut req = {
+            let (mut parts, _) = req.into_parts();
+
+            let authority = parts
+                .uri
+                .authority()
+                .expect("Authority not included in request");
+
+            let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
+            parts.headers.append(hyper::header::HOST, host);
+
+            parts.uri = {
+                let mut parts = parts.uri.into_parts();
+
+                parts.scheme = if parts.scheme.unwrap_or(Scheme::HTTP) == Scheme::HTTP {
+                    Some("ws".try_into().expect("Failed to convert scheme"))
+                } else {
+                    Some("wss".try_into().expect("Failed to convert scheme"))
+                };
+
+                Uri::from_parts(parts).expect("Failed to build URI")
+            };
+
+            Request::from_parts(parts, ())
+        };
+
+        let (res, websocket) =
+            hyper_tungstenite::upgrade(&mut req, None).expect("Request has missing headers");
+
+        let span = info_span!("websocket");
+        let fut = async move {
+            match websocket.await {
+                Ok(ws) => {
+                    if let Err(e) = self.handle_websocket(ws, req).await {
+                        error!("Failed to handle websocket: {}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to upgrade to websocket: {}", e);
+                }
+            }
+        };
+
+        spawn_with_trace(span, fut);
+
+        res
     }
 
     async fn handle_websocket(
