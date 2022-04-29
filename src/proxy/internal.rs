@@ -22,7 +22,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message},
     Connector, WebSocketStream,
 };
-use tracing::{error, info_span, Instrument, Span};
+use tracing::{error, info_span, instrument, Instrument, Span};
 
 async fn trace_future<T>(span: Span, fut: impl Future<Output = T>) -> T {
     fut.instrument(span).await
@@ -88,6 +88,7 @@ where
     H: HttpHandler,
     W: WebSocketHandler,
 {
+    #[instrument(skip_all)]
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {
             self.process_connect(req).await
@@ -103,7 +104,12 @@ where
                 client_addr: self.client_addr,
             };
 
-            let req = match self.http_handler.handle_request(&ctx, req).await {
+            let req = match trace_future(
+                info_span!("handle_request"),
+                self.http_handler.handle_request(&ctx, req),
+            )
+            .await
+            {
                 RequestOrResponse::Request(req) => normalize_request(req),
                 RequestOrResponse::Response(res) => return Ok(res),
             };
@@ -112,8 +118,13 @@ where
                 return Ok(self.upgrade_websocket(req));
             }
 
-            let res = self.client.request(req).await?;
-            Ok(self.http_handler.handle_response(&ctx, res).await)
+            let res = trace_future(info_span!("proxy_request"), self.client.request(req)).await?;
+
+            Ok(trace_future(
+                info_span!("handle_response"),
+                self.http_handler.handle_response(&ctx, res),
+            )
+            .await)
         };
 
         trace_future(span, fut).await
@@ -121,7 +132,6 @@ where
 
     async fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let span = span_from_request!("process_connect", req, self.client_addr);
-
         let fut = async move {
             match hyper::upgrade::on(&mut req).await {
                 Ok(mut upgraded) => {
@@ -183,6 +193,7 @@ where
         Ok(Response::new(Body::empty()))
     }
 
+    #[instrument(skip_all)]
     fn upgrade_websocket(self, req: Request<Body>) -> Response<Body> {
         let mut req = {
             let (mut parts, _) = req.into_parts();
@@ -232,6 +243,7 @@ where
         res
     }
 
+    #[instrument(skip_all)]
     async fn handle_websocket(
         self,
         server_socket: WebSocketStream<Upgraded>,
@@ -277,6 +289,7 @@ where
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn serve_stream<I>(self, stream: I, scheme: Scheme) -> Result<(), hyper::Error>
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -320,7 +333,6 @@ fn spawn_message_forwarder(
     ctx: WebSocketContext,
 ) {
     let span = info_span!("message_forwarder", context = ?ctx);
-
     let fut = async move {
         while let Some(message) = stream.next().await {
             match message {
@@ -354,6 +366,7 @@ fn spawn_message_forwarder(
     spawn_with_trace(span, fut);
 }
 
+#[instrument(skip_all)]
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
     req.headers_mut().remove(hyper::header::HOST);
