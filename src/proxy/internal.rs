@@ -24,27 +24,11 @@ use tokio_tungstenite::{
 };
 use tracing::{error, info_span, instrument, Instrument, Span};
 
-async fn trace_future<T>(span: Span, fut: impl Future<Output = T>) -> T {
-    fut.instrument(span).await
-}
-
 fn spawn_with_trace<T: Send + Sync + 'static>(
-    span: Span,
     fut: impl Future<Output = T> + Send + 'static,
+    span: Span,
 ) -> JoinHandle<T> {
-    tokio::spawn(trace_future(span, fut))
-}
-
-macro_rules! span_from_request {
-    ($name:expr, $req:expr, $client_addr:expr) => {{
-        info_span!(
-            $name,
-            version = ?$req.version(),
-            method = %$req.method(),
-            uri = %$req.uri(),
-            client_addr = %$client_addr
-        )
-    }};
+    tokio::spawn(fut.instrument(span))
 }
 
 pub(crate) struct InternalProxy<C, CA, H, W>
@@ -88,7 +72,15 @@ where
     H: HttpHandler,
     W: WebSocketHandler,
 {
-    #[instrument(skip_all)]
+    #[instrument(
+        skip_all,
+        fields(
+            version = ?req.version(),
+            method = %req.method(),
+            uri=%req.uri(),
+            client_addr = %self.client_addr,
+        )
+    )]
     pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         if req.method() == Method::CONNECT {
             self.process_connect(req).await
@@ -97,41 +89,41 @@ where
         }
     }
 
+    #[instrument(skip_all)]
     async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let span = span_from_request!("process_request", req, self.client_addr);
-        let fut = async move {
-            let ctx = HttpContext {
-                client_addr: self.client_addr,
-            };
-
-            let req = match trace_future(
-                info_span!("handle_request"),
-                self.http_handler.handle_request(&ctx, req),
-            )
-            .await
-            {
-                RequestOrResponse::Request(req) => normalize_request(req),
-                RequestOrResponse::Response(res) => return Ok(res),
-            };
-
-            if hyper_tungstenite::is_upgrade_request(&req) {
-                return Ok(self.upgrade_websocket(req));
-            }
-
-            let res = trace_future(info_span!("proxy_request"), self.client.request(req)).await?;
-
-            Ok(trace_future(
-                info_span!("handle_response"),
-                self.http_handler.handle_response(&ctx, res),
-            )
-            .await)
+        let ctx = HttpContext {
+            client_addr: self.client_addr,
         };
 
-        trace_future(span, fut).await
+        let req = match self
+            .http_handler
+            .handle_request(&ctx, req)
+            .instrument(info_span!("handle_request"))
+            .await
+        {
+            RequestOrResponse::Request(req) => normalize_request(req),
+            RequestOrResponse::Response(res) => return Ok(res),
+        };
+
+        if hyper_tungstenite::is_upgrade_request(&req) {
+            return Ok(self.upgrade_websocket(req));
+        }
+
+        let res = self
+            .client
+            .request(req)
+            .instrument(info_span!("proxy_request"))
+            .await?;
+
+        Ok(self
+            .http_handler
+            .handle_response(&ctx, res)
+            .instrument(info_span!("handle_response"))
+            .await)
     }
 
     async fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let span = span_from_request!("process_connect", req, self.client_addr);
+        let span = info_span!("process_connect");
         let fut = async move {
             match hyper::upgrade::on(&mut req).await {
                 Ok(mut upgraded) => {
@@ -159,11 +151,11 @@ where
                             .authority()
                             .expect("URI does not contain authority");
 
-                        let server_config = trace_future(
-                            info_span!("gen_server_config", %authority),
-                            self.ca.gen_server_config(authority),
-                        )
-                        .await;
+                        let server_config = self
+                            .ca
+                            .gen_server_config(authority)
+                            .instrument(info_span!("gen_server_config"))
+                            .await;
 
                         let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
                             Ok(stream) => stream,
@@ -189,7 +181,7 @@ where
             };
         };
 
-        spawn_with_trace(span, fut);
+        spawn_with_trace(fut, span);
         Ok(Response::new(Body::empty()))
     }
 
@@ -238,8 +230,7 @@ where
             }
         };
 
-        spawn_with_trace(span, fut);
-
+        spawn_with_trace(fut, span);
         res
     }
 
@@ -363,7 +354,7 @@ fn spawn_message_forwarder(
         }
     };
 
-    spawn_with_trace(span, fut);
+    spawn_with_trace(fut, span);
 }
 
 #[instrument(skip_all)]
@@ -378,7 +369,6 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     }
 
     *req.version_mut() = hyper::Version::HTTP_11;
-
     req
 }
 
