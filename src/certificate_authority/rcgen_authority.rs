@@ -10,7 +10,7 @@ use rcgen::{KeyPair, RcgenError, SanType};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{self, ServerConfig};
-use tracing::info;
+use tracing::debug;
 
 /// Issues certificates for use when communicating with clients.
 ///
@@ -116,10 +116,10 @@ impl RcgenAuthority {
 impl CertificateAuthority for RcgenAuthority {
     async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
         if let Some(server_cfg) = self.cache.get(authority) {
-            info!("Using cached server config");
+            debug!("Using cached server config");
             return server_cfg;
         }
-        info!("Generating server config");
+        debug!("Generating server config");
 
         let certs = vec![self.gen_cert(authority)];
 
