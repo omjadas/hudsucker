@@ -5,12 +5,8 @@ use crate::{
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
 use hyper::{
-    client::connect::Connect,
-    header::{Entry, HeaderValue},
-    server::conn::Http,
-    service::service_fn,
-    upgrade::Upgraded,
-    Body, Client, Method, Request, Response, Uri,
+    client::connect::Connect, header::Entry, server::conn::Http, service::service_fn,
+    upgrade::Upgraded, Body, Client, Method, Request, Response, Uri,
 };
 use std::{future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -101,7 +97,7 @@ where
             .instrument(info_span!("handle_request"))
             .await
         {
-            RequestOrResponse::Request(req) => normalize_request(req),
+            RequestOrResponse::Request(req) => req,
             RequestOrResponse::Response(res) => return Ok(res),
         };
 
@@ -111,7 +107,7 @@ where
 
         let res = self
             .client
-            .request(req)
+            .request(normalize_request(req))
             .instrument(info_span!("proxy_request"))
             .await?;
 
@@ -189,14 +185,6 @@ where
     fn upgrade_websocket(self, req: Request<Body>) -> Response<Body> {
         let mut req = {
             let (mut parts, _) = req.into_parts();
-
-            let authority = parts
-                .uri
-                .authority()
-                .expect("Authority not included in request");
-
-            let host = HeaderValue::try_from(authority.host()).expect("Invalid host");
-            parts.headers.append(hyper::header::HOST, host);
 
             parts.uri = {
                 let mut parts = parts.uri.into_parts();
