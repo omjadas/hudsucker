@@ -1,6 +1,5 @@
 use crate::{
-    certificate_authority::CertificateAuthority, HttpHandler, NoopHttpHandler,
-    NoopWebSocketHandler, Proxy, WebSocketHandler,
+    certificate_authority::CertificateAuthority, HttpHandler, NoopHandler, Proxy, WebSocketHandler,
 };
 use hyper::{
     client::{connect::Connect, Client, HttpConnector},
@@ -181,13 +180,13 @@ where
     pub fn with_ca<CA: CertificateAuthority>(
         self,
         ca: CA,
-    ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHttpHandler, NoopWebSocketHandler>> {
+    ) -> ProxyBuilder<WantsHandlers<C, CA, NoopHandler, NoopHandler>> {
         ProxyBuilder(WantsHandlers {
             als: self.0.als,
             client: self.0.client,
             ca,
-            http_handler: NoopHttpHandler::new(),
-            websocket_handler: NoopWebSocketHandler::new(),
+            http_handler: NoopHandler::new(),
+            websocket_handler: NoopHandler::new(),
             websocket_connector: None,
         })
     }

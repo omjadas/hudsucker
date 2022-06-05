@@ -3,20 +3,21 @@ use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use tokio_tungstenite::tungstenite::Message;
 
-/// A No-op handler for HTTP.
+/// A No-op handler.
 ///
-/// When using this handler, requests and responses will not be modified.
+/// When using this handler, HTTP requests and responses and websocket messages will not be
+/// modified.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct NoopHttpHandler(());
+pub struct NoopHandler(());
 
-impl NoopHttpHandler {
+impl NoopHandler {
     pub(crate) fn new() -> Self {
-        NoopHttpHandler(())
+        NoopHandler(())
     }
 }
 
 #[async_trait]
-impl HttpHandler for NoopHttpHandler {
+impl HttpHandler for NoopHandler {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
@@ -30,20 +31,8 @@ impl HttpHandler for NoopHttpHandler {
     }
 }
 
-/// A No-op handler for websocket messages.
-///
-/// When using this handler, websocket messages will not be modified.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct NoopWebSocketHandler(());
-
-impl NoopWebSocketHandler {
-    pub(crate) fn new() -> Self {
-        NoopWebSocketHandler(())
-    }
-}
-
 #[async_trait]
-impl WebSocketHandler for NoopWebSocketHandler {
+impl WebSocketHandler for NoopHandler {
     async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         Some(msg)
     }
