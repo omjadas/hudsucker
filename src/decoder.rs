@@ -122,10 +122,6 @@ fn decode_body<'a>(
 ///
 ///         RequestOrResponse::Request(req)
 ///     }
-///
-///     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-///         res
-///     }
 /// }
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
@@ -175,14 +171,6 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///
 /// #[async_trait]
 /// impl HttpHandler for MyHandler {
-///     async fn handle_request(
-///         &mut self,
-///         _ctx: &HttpContext,
-///         req: Request<Body>,
-///     ) -> RequestOrResponse {
-///         RequestOrResponse::Request(req)
-///     }
-///
 ///     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
 ///         let res = decode_response(res).unwrap();
 ///

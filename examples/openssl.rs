@@ -3,6 +3,7 @@ use hudsucker::{
     certificate_authority::OpensslAuthority,
     hyper::{Body, Request, Response},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
+    tokio_tungstenite::tungstenite::Message,
     *,
 };
 use std::net::SocketAddr;
@@ -31,6 +32,14 @@ impl HttpHandler for LogHandler {
     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         println!("{:?}", res);
         res
+    }
+}
+
+#[async_trait]
+impl WebSocketHandler for LogHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
+        println!("{:?}", msg);
+        Some(msg)
     }
 }
 

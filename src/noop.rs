@@ -1,7 +1,4 @@
-use crate::{HttpContext, HttpHandler, RequestOrResponse, WebSocketContext, WebSocketHandler};
-use async_trait::async_trait;
-use hyper::{Body, Request, Response};
-use tokio_tungstenite::tungstenite::Message;
+use crate::{HttpHandler, WebSocketHandler};
 
 /// A No-op handler.
 ///
@@ -16,24 +13,5 @@ impl NoopHandler {
     }
 }
 
-#[async_trait]
-impl HttpHandler for NoopHandler {
-    async fn handle_request(
-        &mut self,
-        _ctx: &HttpContext,
-        req: Request<Body>,
-    ) -> RequestOrResponse {
-        RequestOrResponse::Request(req)
-    }
-
-    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-        res
-    }
-}
-
-#[async_trait]
-impl WebSocketHandler for NoopHandler {
-    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
-        Some(msg)
-    }
-}
+impl HttpHandler for NoopHandler {}
+impl WebSocketHandler for NoopHandler {}

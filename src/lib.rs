@@ -85,17 +85,21 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     /// response is returned, it will be sent to the client.
     async fn handle_request(
         &mut self,
-        context: &HttpContext,
+        _ctx: &HttpContext,
         request: Request<Body>,
-    ) -> RequestOrResponse;
+    ) -> RequestOrResponse {
+        RequestOrResponse::Request(request)
+    }
 
     /// The handler will be called for each HTTP response. It can modify a response before it is
     /// forwarded to the client.
     async fn handle_response(
         &mut self,
-        context: &HttpContext,
+        _ctx: &HttpContext,
         response: Response<Body>,
-    ) -> Response<Body>;
+    ) -> Response<Body> {
+        response
+    }
 }
 
 /// Handler for websocket messages.
@@ -107,7 +111,9 @@ pub trait WebSocketHandler: Clone + Send + Sync + 'static {
     /// message. If None is returned the message will not be forwarded.
     async fn handle_message(
         &mut self,
-        context: &WebSocketContext,
+        _ctx: &WebSocketContext,
         message: Message,
-    ) -> Option<Message>;
+    ) -> Option<Message> {
+        Some(message)
+    }
 }
