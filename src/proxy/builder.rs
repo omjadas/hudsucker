@@ -45,7 +45,7 @@ use tokio_tungstenite::Connector;
 ///
 /// // let ca = ...;
 ///
-/// let proxy = ProxyBuilder::new()
+/// let proxy = Proxy::builder()
 ///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
 ///     .with_rustls_client()
 ///     .with_ca(ca)
@@ -164,18 +164,12 @@ impl ProxyBuilder<WantsClient> {
 
 /// Builder state that needs a certificate authority.
 #[derive(Debug)]
-pub struct WantsCa<C>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-{
+pub struct WantsCa<C> {
     als: AddrListenerServer,
     client: Client<C>,
 }
 
-impl<C> ProxyBuilder<WantsCa<C>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-{
+impl<C> ProxyBuilder<WantsCa<C>> {
     /// Set the certificate authority to use.
     pub fn with_ca<CA: CertificateAuthority>(
         self,
@@ -193,13 +187,7 @@ where
 }
 
 /// Builder state that can take additional handlers.
-pub struct WantsHandlers<C, CA, H, W>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    W: WebSocketHandler,
-{
+pub struct WantsHandlers<C, CA, H, W> {
     als: AddrListenerServer,
     client: Client<C>,
     ca: CA,
@@ -208,13 +196,7 @@ where
     websocket_connector: Option<Connector>,
 }
 
-impl<C, CA, H, W> ProxyBuilder<WantsHandlers<C, CA, H, W>>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    W: WebSocketHandler,
-{
+impl<C, CA, H, W> ProxyBuilder<WantsHandlers<C, CA, H, W>> {
     /// Set the HTTP handler.
     pub fn with_http_handler<H2: HttpHandler>(
         self,

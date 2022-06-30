@@ -27,13 +27,7 @@ fn spawn_with_trace<T: Send + Sync + 'static>(
     tokio::spawn(fut.instrument(span))
 }
 
-pub(crate) struct InternalProxy<C, CA, H, W>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    W: WebSocketHandler,
-{
+pub(crate) struct InternalProxy<C, CA, H, W> {
     pub ca: Arc<CA>,
     pub client: Client<C>,
     pub http_handler: H,
@@ -44,10 +38,9 @@ where
 
 impl<C, CA, H, W> Clone for InternalProxy<C, CA, H, W>
 where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    W: WebSocketHandler,
+    C: Clone,
+    H: Clone,
+    W: Clone,
 {
     fn clone(&self) -> Self {
         InternalProxy {

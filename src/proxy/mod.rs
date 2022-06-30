@@ -3,7 +3,7 @@ mod internal;
 pub mod builder;
 
 use crate::{certificate_authority::CertificateAuthority, Error, HttpHandler, WebSocketHandler};
-use builder::AddrListenerServer;
+use builder::{AddrListenerServer, WantsAddr};
 use hyper::{
     client::connect::Connect,
     server::conn::AddrStream,
@@ -48,7 +48,7 @@ pub use builder::ProxyBuilder;
 ///
 /// // let ca = ...;
 ///
-/// let proxy = ProxyBuilder::new()
+/// let proxy = Proxy::builder()
 ///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
 ///     .with_rustls_client()
 ///     .with_ca(ca)
@@ -68,19 +68,20 @@ pub use builder::ProxyBuilder;
 /// # #[cfg(not(all(feature = "rcgen-ca", feature = "rustls-client")))]
 /// # fn main() {}
 /// ```
-pub struct Proxy<C, CA, H, W>
-where
-    C: Connect + Clone + Send + Sync + 'static,
-    CA: CertificateAuthority,
-    H: HttpHandler,
-    W: WebSocketHandler,
-{
+pub struct Proxy<C, CA, H, W> {
     als: AddrListenerServer,
     ca: Arc<CA>,
     client: Client<C>,
     http_handler: H,
     websocket_handler: W,
     websocket_connector: Option<Connector>,
+}
+
+impl Proxy<(), (), (), ()> {
+    /// Create a new [`ProxyBuilder`].
+    pub fn builder() -> ProxyBuilder<WantsAddr> {
+        ProxyBuilder::new()
+    }
 }
 
 impl<C, CA, H, W> Proxy<C, CA, H, W>

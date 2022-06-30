@@ -63,7 +63,7 @@ async fn main() {
     let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority");
 
-    let proxy = ProxyBuilder::new()
+    let proxy = Proxy::builder()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
         .with_rustls_client()
         .with_ca(ca)
