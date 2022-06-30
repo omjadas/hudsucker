@@ -22,7 +22,7 @@ use tokio_tungstenite::Connector;
 /// ```rust
 /// # #[cfg(all(feature = "rcgen-ca", feature = "rustls-client"))]
 /// # {
-/// use hudsucker::ProxyBuilder;
+/// use hudsucker::Proxy;
 /// # use hudsucker::certificate_authority::RcgenAuthority;
 /// # use rustls_pemfile as pemfile;
 /// # use tokio_rustls::rustls;

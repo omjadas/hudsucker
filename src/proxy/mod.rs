@@ -21,7 +21,7 @@ pub use builder::ProxyBuilder;
 /// # Examples
 ///
 /// ```rust
-/// use hudsucker::ProxyBuilder;
+/// use hudsucker::Proxy;
 /// # use rustls_pemfile as pemfile;
 /// # use tokio_rustls::rustls;
 /// #

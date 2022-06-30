@@ -6,7 +6,7 @@ use hudsucker::{
         service::{make_service_fn, service_fn},
         Body, Method, Request, Response, Server,
     },
-    rustls, ProxyBuilder,
+    rustls, Proxy,
 };
 use reqwest::Certificate;
 use rustls_pemfile as pemfile;
@@ -115,7 +115,7 @@ fn start_proxy(
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
-    let proxy = ProxyBuilder::new()
+    let proxy = Proxy::builder()
         .with_listener(listener)
         .with_client(native_tls_client())
         .with_ca(ca)

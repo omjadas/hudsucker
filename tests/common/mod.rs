@@ -16,7 +16,7 @@ use hudsucker::{
     },
     rustls,
     tokio_tungstenite::tungstenite::Message,
-    HttpContext, HttpHandler, ProxyBuilder, RequestOrResponse, WebSocketContext, WebSocketHandler,
+    HttpContext, HttpHandler, Proxy, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
 use rustls_pemfile as pemfile;
@@ -191,7 +191,7 @@ where
     let http_handler = TestHttpHandler::new();
     let websocket_handler = TestWebSocketHandler::new();
 
-    let proxy = ProxyBuilder::new()
+    let proxy = Proxy::builder()
         .with_listener(listener)
         .with_client(client)
         .with_ca(ca)
@@ -214,7 +214,7 @@ pub fn start_noop_proxy(
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
-    let proxy = ProxyBuilder::new()
+    let proxy = Proxy::builder()
         .with_listener(listener)
         .with_client(native_tls_client())
         .with_ca(ca)
