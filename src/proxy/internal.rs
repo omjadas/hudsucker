@@ -70,16 +70,10 @@ where
             client_addr = %self.client_addr,
         )
     )]
-    pub(crate) async fn proxy(self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        if req.method() == Method::CONNECT {
-            self.process_connect(req).await
-        } else {
-            self.process_request(req).await
-        }
-    }
-
-    #[instrument(skip_all)]
-    async fn process_request(mut self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    pub(crate) async fn proxy(
+        mut self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, hyper::Error> {
         let ctx = HttpContext {
             client_addr: self.client_addr,
         };
@@ -94,24 +88,26 @@ where
             RequestOrResponse::Response(res) => return Ok(res),
         };
 
-        if hyper_tungstenite::is_upgrade_request(&req) {
-            return Ok(self.upgrade_websocket(req));
+        if req.method() == Method::CONNECT {
+            self.process_connect(req)
+        } else if hyper_tungstenite::is_upgrade_request(&req) {
+            Ok(self.upgrade_websocket(req))
+        } else {
+            let res = self
+                .client
+                .request(normalize_request(req))
+                .instrument(info_span!("proxy_request"))
+                .await?;
+
+            Ok(self
+                .http_handler
+                .handle_response(&ctx, res)
+                .instrument(info_span!("handle_response"))
+                .await)
         }
-
-        let res = self
-            .client
-            .request(normalize_request(req))
-            .instrument(info_span!("proxy_request"))
-            .await?;
-
-        Ok(self
-            .http_handler
-            .handle_response(&ctx, res)
-            .instrument(info_span!("handle_response"))
-            .await)
     }
 
-    async fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let span = info_span!("process_connect");
         let fut = async move {
             match hyper::upgrade::on(&mut req).await {
@@ -288,7 +284,7 @@ where
                 req = Request::from_parts(parts, body);
             };
 
-            self.clone().process_request(req)
+            self.clone().proxy(req)
         });
 
         Http::new()

@@ -35,7 +35,7 @@ async fn https_rustls() {
         .unwrap();
 
     assert_eq!(res.status(), 200);
-    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 2);
     assert_eq!(http_handler.response_counter.load(Ordering::Relaxed), 1);
 
     stop_server.send(()).unwrap();
@@ -61,7 +61,7 @@ async fn https_native_tls() {
         .unwrap();
 
     assert_eq!(res.status(), 200);
-    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 2);
     assert_eq!(http_handler.response_counter.load(Ordering::Relaxed), 1);
 
     stop_server.send(()).unwrap();
