@@ -35,7 +35,7 @@ thiserror = "1.0.23"
 time = { version = "0.3.1", optional = true }
 tokio = { version = "1.6.1", features = ["rt"] }
 tokio-rustls = "0.23.0"
-tokio-tungstenite = { version = "0.17.0" }
+tokio-tungstenite = { version = "0.17.2" }
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 
@@ -50,10 +50,6 @@ tokio = { version = "1.6.1", features = ["full"] }
 tokio-native-tls = "0.3.0"
 tracing-subscriber = "0.3.0"
 x509-parser = "0.14.0"
-
-# TODO: remove this when the `tokio-tungstenite` crate is updated
-[patch.crates-io]
-tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite" }
 
 [features]
 decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
