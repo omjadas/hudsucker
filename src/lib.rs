@@ -8,9 +8,9 @@
 //!
 //! ## Features
 //!
+//! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers (enabled by default).
 //! - `full`: Enables all features.
 //! - `http2`: Enables HTTP/2 support.
-//! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers (enabled by default).
 //! - `native-tls-client`: Enables [`ProxyBuilder::with_native_tls_client`].
 //! - `openssl-ca`: Enables [`certificate_authority::OpensslAuthority`].
 //! - `rcgen-ca`: Enables [`certificate_authority::RcgenAuthority`] (enabled by default).
@@ -47,7 +47,9 @@ pub use proxy::*;
 /// Enum representing either an HTTP request or response.
 #[derive(Debug)]
 pub enum RequestOrResponse {
+    /// HTTP Request
     Request(Request<Body>),
+    /// HTTP Response
     Response(Response<Body>),
 }
 
