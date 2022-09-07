@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
-bstr = "0.2.1"
+bstr = "1.0.0"
 bytes = "1.0.0"
 futures = "0.3.11"
 http = "0.2.0"
