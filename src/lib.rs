@@ -55,6 +55,7 @@ pub enum RequestOrResponse {
 
 /// Context for HTTP requests and responses.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub struct HttpContext {
     /// Address of the client that is sending the request.
     pub client_addr: SocketAddr,
@@ -63,12 +64,14 @@ pub struct HttpContext {
 /// Context for websocket messages.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum WebSocketContext {
+    #[non_exhaustive]
     ClientToServer {
         /// Address of the client.
         src: SocketAddr,
         /// URI of the server.
         dst: Uri,
     },
+    #[non_exhaustive]
     ServerToClient {
         /// URI of the server.
         src: Uri,
