@@ -26,7 +26,7 @@ impl HttpHandler for LogHandler {
         req: Request<Body>,
     ) -> RequestOrResponse {
         println!("{:?}", req);
-        RequestOrResponse::Request(req)
+        req.into()
     }
 
     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {

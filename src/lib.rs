@@ -53,6 +53,18 @@ pub enum RequestOrResponse {
     Response(Response<Body>),
 }
 
+impl From<Request<Body>> for RequestOrResponse {
+    fn from(req: Request<Body>) -> Self {
+        Self::Request(req)
+    }
+}
+
+impl From<Response<Body>> for RequestOrResponse {
+    fn from(res: Response<Body>) -> Self {
+        Self::Response(res)
+    }
+}
+
 /// Context for HTTP requests and responses.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
@@ -91,9 +103,9 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
-        request: Request<Body>,
+        req: Request<Body>,
     ) -> RequestOrResponse {
-        RequestOrResponse::Request(request)
+        req.into()
     }
 
     /// The handler will be called for each HTTP response. It can modify a response before it is
@@ -101,9 +113,9 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     async fn handle_response(
         &mut self,
         _ctx: &HttpContext,
-        response: Response<Body>,
+        res: Response<Body>,
     ) -> Response<Body> {
-        response
+        res
     }
 }
 
