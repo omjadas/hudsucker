@@ -11,6 +11,7 @@ use hyper::{
 use std::{future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite},
+    net::TcpStream,
     task::JoinHandle,
 };
 use tokio_rustls::TlsAcceptor;
@@ -18,7 +19,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message},
     Connector, WebSocketStream,
 };
-use tracing::{error, info_span, instrument, Instrument, Span};
+use tracing::{error, info_span, instrument, warn, Instrument, Span};
 
 fn spawn_with_trace<T: Send + Sync + 'static>(
     fut: impl Future<Output = T> + Send + 'static,
@@ -121,7 +122,7 @@ where
                         }
                     };
 
-                    let upgraded = Rewind::new_buffered(
+                    let mut upgraded = Rewind::new_buffered(
                         upgraded,
                         bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                     );
@@ -156,10 +157,30 @@ where
                             }
                         }
                     } else {
-                        error!(
+                        warn!(
                             "Unknown protocol, read '{:02X?}' from upgraded connection",
                             &buffer[..bytes_read]
                         );
+
+                        let authority = req
+                            .uri()
+                            .authority()
+                            .expect("URI does not contain authority")
+                            .as_ref();
+
+                        let mut server = match TcpStream::connect(authority).await {
+                            Ok(server) => server,
+                            Err(e) => {
+                                error!("Failed to connect to {}: {}", authority, e);
+                                return;
+                            }
+                        };
+
+                        if let Err(e) =
+                            tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
+                        {
+                            error!("Failed to tunnel unknown protocol to {}: {}", authority, e);
+                        }
                     }
                 }
                 Err(e) => error!("Upgrade error: {}", e),
@@ -305,9 +326,8 @@ fn spawn_message_forwarder(
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => {
-                    let message = match handler.handle_message(&ctx, message).await {
-                        Some(message) => message,
-                        None => continue,
+                    let Some(message) = handler.handle_message(&ctx, message).await else {
+                        continue
                     };
 
                     match sink.send(message).await {

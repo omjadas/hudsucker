@@ -110,11 +110,7 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
 
     /// The handler will be called for each HTTP response. It can modify a response before it is
     /// forwarded to the client.
-    async fn handle_response(
-        &mut self,
-        _ctx: &HttpContext,
-        res: Response<Body>,
-    ) -> Response<Body> {
+    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         res
     }
 }
