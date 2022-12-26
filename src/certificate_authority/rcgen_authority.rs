@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use rand::{thread_rng, Rng};
-use rcgen::{KeyPair, RcgenError, SanType};
+use rcgen::{DistinguishedName, DnType, KeyPair, RcgenError, SanType};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{self, ServerConfig};
@@ -79,6 +79,10 @@ impl RcgenAuthority {
         let not_before = OffsetDateTime::now_utc() - Duration::seconds(NOT_BEFORE_OFFSET);
         params.not_before = not_before;
         params.not_after = not_before + Duration::seconds(TTL_SECS);
+
+        let mut distinguished_name = DistinguishedName::new();
+        distinguished_name.push(DnType::CommonName, authority.host());
+        params.distinguished_name = distinguished_name;
 
         params
             .subject_alt_names
