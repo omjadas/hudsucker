@@ -6,7 +6,7 @@ use futures::{Sink, SinkExt, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
 use hyper::{
     client::connect::Connect, header::Entry, server::conn::Http, service::service_fn,
-    upgrade::Upgraded, Body, Client, Method, Request, Response, Uri,
+    upgrade::Upgraded, Body, Client, Method, Request, Response, StatusCode, Uri,
 };
 use std::{future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -20,6 +20,13 @@ use tokio_tungstenite::{
     Connector, WebSocketStream,
 };
 use tracing::{error, info_span, instrument, warn, Instrument, Span};
+
+fn bad_request() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::BAD_REQUEST)
+        .body(Body::empty())
+        .expect("Failed to build response")
+}
 
 fn spawn_with_trace<T: Send + Sync + 'static>(
     fut: impl Future<Output = T> + Send + 'static,
@@ -109,86 +116,90 @@ where
     }
 
     fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-        let span = info_span!("process_connect");
-        let fut = async move {
-            match hyper::upgrade::on(&mut req).await {
-                Ok(mut upgraded) => {
-                    let mut buffer = [0; 4];
-                    let bytes_read = match upgraded.read(&mut buffer).await {
-                        Ok(bytes_read) => bytes_read,
-                        Err(e) => {
-                            error!("Failed to read from upgraded connection: {}", e);
-                            return;
+        match req.uri().authority().cloned() {
+            Some(authority) => {
+                let span = info_span!("process_connect");
+                let fut = async move {
+                    match hyper::upgrade::on(&mut req).await {
+                        Ok(mut upgraded) => {
+                            let mut buffer = [0; 4];
+                            let bytes_read = match upgraded.read(&mut buffer).await {
+                                Ok(bytes_read) => bytes_read,
+                                Err(e) => {
+                                    error!("Failed to read from upgraded connection: {}", e);
+                                    return;
+                                }
+                            };
+
+                            let mut upgraded = Rewind::new_buffered(
+                                upgraded,
+                                bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
+                            );
+
+                            if buffer == *b"GET " {
+                                if let Err(e) =
+                                    self.serve_stream(upgraded, Scheme::HTTP, authority).await
+                                {
+                                    error!("Websocket connect error: {}", e);
+                                }
+                            } else if buffer[..2] == *b"\x16\x03" {
+                                let server_config = self
+                                    .ca
+                                    .gen_server_config(&authority)
+                                    .instrument(info_span!("gen_server_config"))
+                                    .await;
+
+                                let stream =
+                                    match TlsAcceptor::from(server_config).accept(upgraded).await {
+                                        Ok(stream) => stream,
+                                        Err(e) => {
+                                            error!("Failed to establish TLS connection: {}", e);
+                                            return;
+                                        }
+                                    };
+
+                                if let Err(e) =
+                                    self.serve_stream(stream, Scheme::HTTPS, authority).await
+                                {
+                                    if !e.to_string().starts_with("error shutting down connection")
+                                    {
+                                        error!("HTTPS connect error: {}", e);
+                                    }
+                                }
+                            } else {
+                                warn!(
+                                    "Unknown protocol, read '{:02X?}' from upgraded connection",
+                                    &buffer[..bytes_read]
+                                );
+
+                                let mut server = match TcpStream::connect(authority.as_ref()).await
+                                {
+                                    Ok(server) => server,
+                                    Err(e) => {
+                                        error!("Failed to connect to {}: {}", authority, e);
+                                        return;
+                                    }
+                                };
+
+                                if let Err(e) =
+                                    tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
+                                {
+                                    error!(
+                                        "Failed to tunnel unknown protocol to {}: {}",
+                                        authority, e
+                                    );
+                                }
+                            }
                         }
+                        Err(e) => error!("Upgrade error: {}", e),
                     };
+                };
 
-                    let mut upgraded = Rewind::new_buffered(
-                        upgraded,
-                        bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
-                    );
-
-                    if buffer == *b"GET " {
-                        if let Err(e) = self.serve_stream(upgraded, Scheme::HTTP).await {
-                            error!("Websocket connect error: {}", e);
-                        }
-                    } else if buffer[..2] == *b"\x16\x03" {
-                        let authority = req
-                            .uri()
-                            .authority()
-                            .expect("URI does not contain authority");
-
-                        let server_config = self
-                            .ca
-                            .gen_server_config(authority)
-                            .instrument(info_span!("gen_server_config"))
-                            .await;
-
-                        let stream = match TlsAcceptor::from(server_config).accept(upgraded).await {
-                            Ok(stream) => stream,
-                            Err(e) => {
-                                error!("Failed to establish TLS connection: {}", e);
-                                return;
-                            }
-                        };
-
-                        if let Err(e) = self.serve_stream(stream, Scheme::HTTPS).await {
-                            if !e.to_string().starts_with("error shutting down connection") {
-                                error!("HTTPS connect error: {}", e);
-                            }
-                        }
-                    } else {
-                        warn!(
-                            "Unknown protocol, read '{:02X?}' from upgraded connection",
-                            &buffer[..bytes_read]
-                        );
-
-                        let authority = req
-                            .uri()
-                            .authority()
-                            .expect("URI does not contain authority")
-                            .as_ref();
-
-                        let mut server = match TcpStream::connect(authority).await {
-                            Ok(server) => server,
-                            Err(e) => {
-                                error!("Failed to connect to {}: {}", authority, e);
-                                return;
-                            }
-                        };
-
-                        if let Err(e) =
-                            tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
-                        {
-                            error!("Failed to tunnel unknown protocol to {}: {}", authority, e);
-                        }
-                    }
-                }
-                Err(e) => error!("Upgrade error: {}", e),
-            };
-        };
-
-        spawn_with_trace(fut, span);
-        Ok(Response::new(Body::empty()))
+                spawn_with_trace(fut, span);
+                Ok(Response::new(Body::empty()))
+            }
+            None => Ok(bad_request()),
+        }
     }
 
     #[instrument(skip_all)]
@@ -205,31 +216,38 @@ where
                     Some("wss".try_into().expect("Failed to convert scheme"))
                 };
 
-                Uri::from_parts(parts).expect("Failed to build URI")
+                match Uri::from_parts(parts) {
+                    Ok(uri) => uri,
+                    Err(_) => {
+                        return bad_request();
+                    }
+                }
             };
 
             Request::from_parts(parts, ())
         };
 
-        let (res, websocket) =
-            hyper_tungstenite::upgrade(&mut req, None).expect("Request has missing headers");
-
-        let span = info_span!("websocket");
-        let fut = async move {
-            match websocket.await {
-                Ok(ws) => {
-                    if let Err(e) = self.handle_websocket(ws, req).await {
-                        error!("Failed to handle websocket: {}", e);
+        match hyper_tungstenite::upgrade(&mut req, None) {
+            Ok((res, websocket)) => {
+                let span = info_span!("websocket");
+                let fut = async move {
+                    match websocket.await {
+                        Ok(ws) => {
+                            if let Err(e) = self.handle_websocket(ws, req).await {
+                                error!("Failed to handle websocket: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to upgrade to websocket: {}", e);
+                        }
                     }
-                }
-                Err(e) => {
-                    error!("Failed to upgrade to websocket: {}", e);
-                }
-            }
-        };
+                };
 
-        spawn_with_trace(fut, span);
-        res
+                spawn_with_trace(fut, span);
+                res
+            }
+            Err(_) => bad_request(),
+        }
     }
 
     #[instrument(skip_all)]
@@ -279,7 +297,12 @@ where
     }
 
     #[instrument(skip_all)]
-    async fn serve_stream<I>(self, stream: I, scheme: Scheme) -> Result<(), hyper::Error>
+    async fn serve_stream<I>(
+        self,
+        stream: I,
+        scheme: Scheme,
+        authority: Authority,
+    ) -> Result<(), hyper::Error>
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
@@ -288,17 +311,10 @@ where
             {
                 let (mut parts, body) = req.into_parts();
 
-                let authority = parts
-                    .headers
-                    .get(hyper::header::HOST)
-                    .expect("Host is a required header")
-                    .as_bytes();
-
                 parts.uri = {
                     let mut parts = parts.uri.into_parts();
                     parts.scheme = Some(scheme.clone());
-                    parts.authority =
-                        Some(Authority::try_from(authority).expect("Failed to parse authority"));
+                    parts.authority = Some(authority.clone());
                     Uri::from_parts(parts).expect("Failed to build URI")
                 };
 
@@ -372,6 +388,39 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_rustls::rustls::ServerConfig;
+
+    struct CA;
+
+    #[async_trait::async_trait]
+    impl CertificateAuthority for CA {
+        async fn gen_server_config(&self, _authority: &Authority) -> Arc<ServerConfig> {
+            unimplemented!();
+        }
+    }
+
+    fn build_proxy(
+    ) -> InternalProxy<hyper::client::HttpConnector, CA, crate::NoopHandler, crate::NoopHandler>
+    {
+        InternalProxy {
+            ca: Arc::new(CA),
+            client: hyper::Client::new(),
+            http_handler: crate::NoopHandler::new(),
+            websocket_handler: crate::NoopHandler::new(),
+            websocket_connector: None,
+            client_addr: "127.0.0.1:8080".parse().unwrap(),
+        }
+    }
+
+    mod bad_request {
+        use super::*;
+
+        #[test]
+        fn correct_status() {
+            let res = bad_request();
+            assert_eq!(res.status(), StatusCode:: BAD_REQUEST);
+        }
+    }
 
     mod normalize_request {
         use super::*;
@@ -409,6 +458,56 @@ mod tests {
                 req.headers().get(hyper::header::COOKIE),
                 Some(&"foo=bar; baz=qux".parse().unwrap())
             );
+        }
+    }
+
+    mod process_connect {
+        use super::*;
+
+        #[test]
+        fn returns_bad_request_if_missing_authority() {
+            let proxy = build_proxy();
+
+            let req = Request::builder()
+                .uri("/foo/bar?baz")
+                .body(Body::empty())
+                .unwrap();
+
+            let res = proxy.process_connect(req).unwrap();
+
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST)
+        }
+    }
+
+    mod upgrade_websocket {
+        use super::*;
+
+        #[test]
+        fn returns_bad_request_if_missing_authority() {
+            let proxy = build_proxy();
+
+            let req = Request::builder()
+                .uri("/foo/bar?baz")
+                .body(Body::empty())
+                .unwrap();
+
+            let res = proxy.upgrade_websocket(req);
+
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST)
+        }
+
+        #[test]
+        fn returns_bad_request_if_missing_headers() {
+            let proxy = build_proxy();
+
+            let req = Request::builder()
+                .uri("http://example.com/foo/bar?baz")
+                .body(Body::empty())
+                .unwrap();
+
+            let res = proxy.upgrade_websocket(req);
+
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
     }
 }
