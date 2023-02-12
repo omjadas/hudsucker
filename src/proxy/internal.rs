@@ -418,7 +418,7 @@ mod tests {
         #[test]
         fn correct_status() {
             let res = bad_request();
-            assert_eq!(res.status(), StatusCode:: BAD_REQUEST);
+            assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         }
     }
 
