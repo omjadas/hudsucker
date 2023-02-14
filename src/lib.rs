@@ -115,7 +115,7 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     }
 
     /// Whether a CONNECT request should be intercepted. Defaults to `true` for all requests.
-    async fn should_intercept(&mut self, _req: &Request<Body>) -> bool {
+    async fn should_intercept(&mut self, _ctx: &HttpContext, _req: &Request<Body>) -> bool {
         true
     }
 }

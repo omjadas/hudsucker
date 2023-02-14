@@ -69,6 +69,12 @@ where
     H: HttpHandler,
     W: WebSocketHandler,
 {
+    fn context(&self) -> HttpContext {
+        HttpContext {
+            client_addr: self.client_addr,
+        }
+    }
+
     #[instrument(
         skip_all,
         fields(
@@ -82,9 +88,7 @@ where
         mut self,
         req: Request<Body>,
     ) -> Result<Response<Body>, hyper::Error> {
-        let ctx = HttpContext {
-            client_addr: self.client_addr,
-        };
+        let ctx = self.context();
 
         let req = match self
             .http_handler
@@ -136,7 +140,11 @@ where
                                 bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );
 
-                            if self.http_handler.should_intercept(&req).await {
+                            if self
+                                .http_handler
+                                .should_intercept(&self.context(), &req)
+                                .await
+                            {
                                 if buffer == *b"GET " {
                                     if let Err(e) =
                                         self.serve_stream(upgraded, Scheme::HTTP, authority).await
