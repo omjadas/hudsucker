@@ -30,7 +30,7 @@ fn build_ca() -> RcgenAuthority {
 
 #[tokio::test]
 async fn http() {
-    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
@@ -57,7 +57,7 @@ async fn http() {
     let msg = ws.next().await.unwrap().unwrap();
 
     assert_eq!(msg.to_string(), common::WORLD);
-    assert_eq!(websocket_handler.message_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();
@@ -65,7 +65,7 @@ async fn http() {
 
 #[tokio::test]
 async fn https_rustls() {
-    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
         common::rustls_client(),
         common::rustls_websocket_connector(),
@@ -93,7 +93,7 @@ async fn https_rustls() {
     let msg = ws.next().await.unwrap().unwrap();
 
     assert_eq!(msg.to_string(), common::WORLD);
-    assert_eq!(websocket_handler.message_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();
@@ -101,7 +101,7 @@ async fn https_rustls() {
 
 #[tokio::test]
 async fn https_native_tls() {
-    let (proxy_addr, (_, websocket_handler), stop_proxy) = common::start_proxy(
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
@@ -129,7 +129,42 @@ async fn https_native_tls() {
     let msg = ws.next().await.unwrap().unwrap();
 
     assert_eq!(msg.to_string(), common::WORLD);
-    assert_eq!(websocket_handler.message_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
+
+    stop_server.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn without_intercept() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_intercept(
+        build_ca(),
+        common::http_client(),
+        common::plain_websocket_connector(),
+    )
+    .unwrap();
+
+    let (server_addr, stop_server) = common::start_http_server().unwrap();
+
+    let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
+    http_connect_tokio(
+        &mut stream,
+        &server_addr.ip().to_string(),
+        server_addr.port(),
+    )
+    .await
+    .unwrap();
+
+    let (mut ws, _) = tokio_tungstenite::client_async(format!("ws://{}", server_addr), stream)
+        .await
+        .unwrap();
+
+    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+
+    let msg = ws.next().await.unwrap().unwrap();
+
+    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(handler.message_counter.load(Ordering::Relaxed), 0);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();

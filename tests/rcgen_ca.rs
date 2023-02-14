@@ -24,7 +24,7 @@ fn build_ca() -> RcgenAuthority {
 
 #[tokio::test]
 async fn https_rustls() {
-    let (proxy_addr, (http_handler, _), stop_proxy) = common::start_proxy(
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
         common::rustls_client(),
         common::rustls_websocket_connector(),
@@ -41,8 +41,8 @@ async fn https_rustls() {
         .unwrap();
 
     assert_eq!(res.status(), 200);
-    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 2);
-    assert_eq!(http_handler.response_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(handler.request_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(handler.response_counter.load(Ordering::Relaxed), 1);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();
@@ -50,7 +50,7 @@ async fn https_rustls() {
 
 #[tokio::test]
 async fn https_native_tls() {
-    let (proxy_addr, (http_handler, _), stop_proxy) = common::start_proxy(
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
@@ -67,8 +67,34 @@ async fn https_native_tls() {
         .unwrap();
 
     assert_eq!(res.status(), 200);
-    assert_eq!(http_handler.request_counter.load(Ordering::Relaxed), 2);
-    assert_eq!(http_handler.response_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(handler.request_counter.load(Ordering::Relaxed), 2);
+    assert_eq!(handler.response_counter.load(Ordering::Relaxed), 1);
+
+    stop_server.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn without_intercept() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_intercept(
+        build_ca(),
+        common::http_client(),
+        common::plain_websocket_connector(),
+    )
+    .unwrap();
+
+    let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
+    let client = common::build_client(&proxy_addr.to_string());
+
+    let res = client
+        .get(format!("https://localhost:{}/hello", server_addr.port()))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    assert_eq!(handler.request_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(handler.response_counter.load(Ordering::Relaxed), 0);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();

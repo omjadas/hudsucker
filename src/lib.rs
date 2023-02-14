@@ -113,6 +113,11 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
         res
     }
+
+    /// Whether a CONNECT request should be intercepted. Defaults to `true` for all requests.
+    async fn should_intercept(&mut self, _req: &Request<Body>) -> bool {
+        true
+    }
 }
 
 /// Handler for websocket messages.

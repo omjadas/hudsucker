@@ -113,6 +113,14 @@ pub async fn start_https_server(
     Ok((addr, tx))
 }
 
+pub fn http_client() -> Client<HttpConnector> {
+    Client::new()
+}
+
+pub fn plain_websocket_connector() -> tokio_tungstenite::Connector {
+    tokio_tungstenite::Connector::Plain
+}
+
 fn rustls_client_config() -> rustls::ClientConfig {
     let mut roots = rustls::RootCertStore::empty();
 
@@ -174,13 +182,34 @@ pub fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>> {
     Client::builder().build(https)
 }
 
-type TestHandlers = (TestHttpHandler, TestWebSocketHandler);
-
 pub fn start_proxy<C>(
     ca: impl CertificateAuthority,
     client: Client<C>,
     websocket_connector: tokio_tungstenite::Connector,
-) -> Result<(SocketAddr, TestHandlers, Sender<()>), Box<dyn std::error::Error>>
+) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
+where
+    C: Connect + Clone + Send + Sync + 'static,
+{
+    _start_proxy(ca, client, websocket_connector, true)
+}
+
+pub fn start_proxy_without_intercept<C>(
+    ca: impl CertificateAuthority,
+    client: Client<C>,
+    websocket_connector: tokio_tungstenite::Connector,
+) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
+where
+    C: Connect + Clone + Send + Sync + 'static,
+{
+    _start_proxy(ca, client, websocket_connector, false)
+}
+
+fn _start_proxy<C>(
+    ca: impl CertificateAuthority,
+    client: Client<C>,
+    websocket_connector: tokio_tungstenite::Connector,
+    should_intercept: bool,
+) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
@@ -188,15 +217,14 @@ where
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
-    let http_handler = TestHttpHandler::new();
-    let websocket_handler = TestWebSocketHandler::new();
+    let handler = TestHandler::new(should_intercept);
 
     let proxy = Proxy::builder()
         .with_listener(listener)
         .with_client(client)
         .with_ca(ca)
-        .with_http_handler(http_handler.clone())
-        .with_websocket_handler(websocket_handler.clone())
+        .with_http_handler(handler.clone())
+        .with_websocket_handler(handler.clone())
         .with_websocket_connector(websocket_connector)
         .build();
 
@@ -204,7 +232,7 @@ where
         rx.await.unwrap_or_default();
     }));
 
-    Ok((addr, (http_handler, websocket_handler), tx))
+    Ok((addr, handler, tx))
 }
 
 pub fn start_noop_proxy(
@@ -242,22 +270,26 @@ pub fn build_client(proxy: &str) -> reqwest::Client {
 }
 
 #[derive(Clone)]
-pub struct TestHttpHandler {
+pub struct TestHandler {
     pub request_counter: Arc<AtomicUsize>,
     pub response_counter: Arc<AtomicUsize>,
+    pub message_counter: Arc<AtomicUsize>,
+    pub should_intercept: bool,
 }
 
-impl TestHttpHandler {
-    pub fn new() -> Self {
+impl TestHandler {
+    pub fn new(should_intercept: bool) -> Self {
         Self {
             request_counter: Arc::new(AtomicUsize::new(0)),
             response_counter: Arc::new(AtomicUsize::new(0)),
+            message_counter: Arc::new(AtomicUsize::new(0)),
+            should_intercept,
         }
     }
 }
 
 #[async_trait]
-impl HttpHandler for TestHttpHandler {
+impl HttpHandler for TestHandler {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
@@ -272,23 +304,14 @@ impl HttpHandler for TestHttpHandler {
         self.response_counter.fetch_add(1, Ordering::Relaxed);
         decode_response(res).unwrap()
     }
-}
 
-#[derive(Clone)]
-pub struct TestWebSocketHandler {
-    pub message_counter: Arc<AtomicUsize>,
-}
-
-impl TestWebSocketHandler {
-    pub fn new() -> Self {
-        Self {
-            message_counter: Arc::new(AtomicUsize::new(0)),
-        }
+    async fn should_intercept(&mut self, _req: &Request<Body>) -> bool {
+        self.should_intercept
     }
 }
 
 #[async_trait]
-impl WebSocketHandler for TestWebSocketHandler {
+impl WebSocketHandler for TestHandler {
     async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         self.message_counter.fetch_add(1, Ordering::Relaxed);
         Some(msg)

@@ -115,7 +115,7 @@ where
         }
     }
 
-    fn process_connect(self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    fn process_connect(mut self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         match req.uri().authority().cloned() {
             Some(authority) => {
                 let span = info_span!("process_connect");
@@ -136,21 +136,26 @@ where
                                 bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );
 
-                            if buffer == *b"GET " {
-                                if let Err(e) =
-                                    self.serve_stream(upgraded, Scheme::HTTP, authority).await
-                                {
-                                    error!("Websocket connect error: {}", e);
-                                }
-                            } else if buffer[..2] == *b"\x16\x03" {
-                                let server_config = self
-                                    .ca
-                                    .gen_server_config(&authority)
-                                    .instrument(info_span!("gen_server_config"))
-                                    .await;
+                            if self.http_handler.should_intercept(&req).await {
+                                if buffer == *b"GET " {
+                                    if let Err(e) =
+                                        self.serve_stream(upgraded, Scheme::HTTP, authority).await
+                                    {
+                                        error!("Websocket connect error: {}", e);
+                                    }
 
-                                let stream =
-                                    match TlsAcceptor::from(server_config).accept(upgraded).await {
+                                    return;
+                                } else if buffer[..2] == *b"\x16\x03" {
+                                    let server_config = self
+                                        .ca
+                                        .gen_server_config(&authority)
+                                        .instrument(info_span!("gen_server_config"))
+                                        .await;
+
+                                    let stream = match TlsAcceptor::from(server_config)
+                                        .accept(upgraded)
+                                        .await
+                                    {
                                         Ok(stream) => stream,
                                         Err(e) => {
                                             error!("Failed to establish TLS connection: {}", e);
@@ -158,37 +163,38 @@ where
                                         }
                                     };
 
-                                if let Err(e) =
-                                    self.serve_stream(stream, Scheme::HTTPS, authority).await
-                                {
-                                    if !e.to_string().starts_with("error shutting down connection")
+                                    if let Err(e) =
+                                        self.serve_stream(stream, Scheme::HTTPS, authority).await
                                     {
-                                        error!("HTTPS connect error: {}", e);
+                                        if !e
+                                            .to_string()
+                                            .starts_with("error shutting down connection")
+                                        {
+                                            error!("HTTPS connect error: {}", e);
+                                        }
                                     }
-                                }
-                            } else {
-                                warn!(
-                                    "Unknown protocol, read '{:02X?}' from upgraded connection",
-                                    &buffer[..bytes_read]
-                                );
 
-                                let mut server = match TcpStream::connect(authority.as_ref()).await
-                                {
-                                    Ok(server) => server,
-                                    Err(e) => {
-                                        error!("Failed to connect to {}: {}", authority, e);
-                                        return;
-                                    }
-                                };
-
-                                if let Err(e) =
-                                    tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
-                                {
-                                    error!(
-                                        "Failed to tunnel unknown protocol to {}: {}",
-                                        authority, e
+                                    return;
+                                } else {
+                                    warn!(
+                                        "Unknown protocol, read '{:02X?}' from upgraded connection",
+                                        &buffer[..bytes_read]
                                     );
                                 }
+                            }
+
+                            let mut server = match TcpStream::connect(authority.as_ref()).await {
+                                Ok(server) => server,
+                                Err(e) => {
+                                    error!("Failed to connect to {}: {}", authority, e);
+                                    return;
+                                }
+                            };
+
+                            if let Err(e) =
+                                tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
+                            {
+                                error!("Failed to tunnel to {}: {}", authority, e);
                             }
                         }
                         Err(e) => error!("Upgrade error: {}", e),
