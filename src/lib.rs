@@ -25,16 +25,15 @@ mod rewind;
 
 pub mod certificate_authority;
 
-use hyper::{Body, Request, Response, Uri};
+use hyper::{Body, Request, Response, StatusCode, Uri};
 use std::net::SocketAddr;
 use tokio_tungstenite::tungstenite::Message;
+use tracing::error;
 
 pub(crate) use rewind::Rewind;
 
 pub use async_trait;
-use http::StatusCode;
 pub use hyper;
-use tracing::error;
 #[cfg(feature = "openssl-ca")]
 pub use openssl;
 pub use tokio_rustls::rustls;
@@ -116,11 +115,6 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
         res
     }
 
-    /// Whether a CONNECT request should be intercepted. Defaults to `true` for all requests.
-    async fn should_intercept(&mut self, _ctx: &HttpContext, _req: &Request<Body>) -> bool {
-        true
-    }
-
     /// The handler will be called if a proxy request fails. Default response is a 502 Bad Gateway.
     async fn handle_error(&mut self, _ctx: &HttpContext, err: hyper::Error) -> Response<Body> {
         error!("Failed to forward request: {}", err);
@@ -128,6 +122,11 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
             .status(StatusCode::BAD_GATEWAY)
             .body(Body::empty())
             .expect("Failed to build response")
+    }
+
+    /// Whether a CONNECT request should be intercepted. Defaults to `true` for all requests.
+    async fn should_intercept(&mut self, _ctx: &HttpContext, _req: &Request<Body>) -> bool {
+        true
     }
 }
 

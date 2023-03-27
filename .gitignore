@@ -116,4 +116,4 @@ $RECYCLE.BIN/
 *.lnk
 
 # JetBrains
-/.idea 
+.idea/

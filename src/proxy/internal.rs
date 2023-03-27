@@ -112,12 +112,16 @@ where
                 .await;
 
             match res {
-                Err(e) => Ok(self.http_handler.handle_error(&ctx, e).await),
                 Ok(res) => Ok(self
                     .http_handler
                     .handle_response(&ctx, res)
                     .instrument(info_span!("handle_response"))
-                    .await)
+                    .await),
+                Err(err) => Ok(self
+                    .http_handler
+                    .handle_error(&ctx, err)
+                    .instrument(info_span!("handle_error"))
+                    .await),
             }
         }
     }
