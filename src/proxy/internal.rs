@@ -101,7 +101,7 @@ where
         };
 
         if req.method() == Method::CONNECT {
-            self.process_connect(req)
+            Ok(self.process_connect(req))
         } else if hyper_tungstenite::is_upgrade_request(&req) {
             Ok(self.upgrade_websocket(req))
         } else {
@@ -126,7 +126,7 @@ where
         }
     }
 
-    fn process_connect(mut self, mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    fn process_connect(mut self, mut req: Request<Body>) -> Response<Body> {
         match req.uri().authority().cloned() {
             Some(authority) => {
                 let span = info_span!("process_connect");
@@ -217,9 +217,9 @@ where
                 };
 
                 spawn_with_trace(fut, span);
-                Ok(Response::new(Body::empty()))
+                Response::new(Body::empty())
             }
-            None => Ok(bad_request()),
+            None => bad_request(),
         }
     }
 
@@ -494,7 +494,7 @@ mod tests {
                 .body(Body::empty())
                 .unwrap();
 
-            let res = proxy.process_connect(req).unwrap();
+            let res = proxy.process_connect(req);
 
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
