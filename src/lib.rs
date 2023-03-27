@@ -34,7 +34,7 @@ pub(crate) use rewind::Rewind;
 pub use async_trait;
 use http::StatusCode;
 pub use hyper;
-pub use tracing::error;
+use tracing::error;
 #[cfg(feature = "openssl-ca")]
 pub use openssl;
 pub use tokio_rustls::rustls;
