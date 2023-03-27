@@ -109,13 +109,16 @@ where
                 .client
                 .request(normalize_request(req))
                 .instrument(info_span!("proxy_request"))
-                .await?;
+                .await;
 
-            Ok(self
-                .http_handler
-                .handle_response(&ctx, res)
-                .instrument(info_span!("handle_response"))
-                .await)
+            match res {
+                Err(e) => Ok(self.http_handler.handle_error(&ctx, e).await),
+                Ok(res) => Ok(self
+                    .http_handler
+                    .handle_response(&ctx, res)
+                    .instrument(info_span!("handle_response"))
+                    .await)
+            }
         }
     }
 

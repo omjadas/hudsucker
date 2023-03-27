@@ -114,3 +114,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# JetBrains
+/.idea 
