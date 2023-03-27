@@ -109,7 +109,12 @@ where
                 .client
                 .request(normalize_request(req))
                 .instrument(info_span!("proxy_request"))
-                .await?;
+                .await;
+
+            if res.is_err() {
+                return Ok(self.http_handler.handle_error(&ctx, res.unwrap_err()).await);
+            }
+            let res = res.unwrap();
 
             Ok(self
                 .http_handler
