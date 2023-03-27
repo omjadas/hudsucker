@@ -111,16 +111,14 @@ where
                 .instrument(info_span!("proxy_request"))
                 .await;
 
-            if res.is_err() {
-                return Ok(self.http_handler.handle_error(&ctx, res.unwrap_err()).await);
+            match res {
+                Err(e) => Ok(self.http_handler.handle_error(&ctx, e).await),
+                Ok(res) => Ok(self
+                    .http_handler
+                    .handle_response(&ctx, res)
+                    .instrument(info_span!("handle_response"))
+                    .await)
             }
-            let res = res.unwrap();
-
-            Ok(self
-                .http_handler
-                .handle_response(&ctx, res)
-                .instrument(info_span!("handle_response"))
-                .await)
         }
     }
 

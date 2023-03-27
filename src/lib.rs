@@ -34,6 +34,7 @@ pub(crate) use rewind::Rewind;
 pub use async_trait;
 use http::StatusCode;
 pub use hyper;
+pub use tracing::error;
 #[cfg(feature = "openssl-ca")]
 pub use openssl;
 pub use tokio_rustls::rustls;
@@ -120,10 +121,13 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
         true
     }
 
-    // The error handler is failed if a proxy request fails. Default response is a 502 Bad Gateway
+    /// The handler will be called if a proxy request fails. Default response is a 502 Bad Gateway.
     async fn handle_error(&mut self, _ctx: &HttpContext, err: hyper::Error) -> Response<Body> {
-        eprintln!("hudsucker failed to forward request: {}", err);
-        Response::builder().status(StatusCode::BAD_GATEWAY).body(Body::from("502 Bad Gateway")).unwrap()
+        error!("Failed to forward request: {}", err);
+        Response::builder()
+            .status(StatusCode::BAD_GATEWAY)
+            .body(Body::empty())
+            .expect("Failed to build response")
     }
 }
 
