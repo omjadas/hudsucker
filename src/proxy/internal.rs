@@ -8,7 +8,7 @@ use hyper::{
     client::connect::Connect, header::Entry, server::conn::Http, service::service_fn,
     upgrade::Upgraded, Body, Client, Method, Request, Response, StatusCode, Uri,
 };
-use std::{future::Future, net::SocketAddr, sync::Arc, convert::Infallible};
+use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite},
     net::TcpStream,
@@ -84,10 +84,7 @@ where
             client_addr = %self.client_addr,
         )
     )]
-    pub(crate) async fn proxy(
-        mut self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>, Infallible> {
+    pub(crate) async fn proxy(mut self, req: Request<Body>) -> Result<Response<Body>, Infallible> {
         let ctx = self.context();
 
         let req = match self
