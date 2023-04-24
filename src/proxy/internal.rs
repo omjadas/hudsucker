@@ -2,7 +2,7 @@ use crate::{
     certificate_authority::CertificateAuthority, HttpContext, HttpHandler, RequestOrResponse,
     Rewind, WebSocketContext, WebSocketHandler,
 };
-use futures::{Sink, SinkExt, Stream, StreamExt};
+use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
 use hyper::{
     client::connect::Connect, header::Entry, server::conn::Http, service::service_fn,
@@ -153,7 +153,7 @@ where
                                     if let Err(e) =
                                         self.serve_stream(upgraded, Scheme::HTTP, authority).await
                                     {
-                                        error!("Websocket connect error: {}", e);
+                                        error!("WebSocket connect error: {}", e);
                                     }
 
                                     return;
@@ -252,11 +252,11 @@ where
                     match websocket.await {
                         Ok(ws) => {
                             if let Err(e) = self.handle_websocket(ws, req).await {
-                                error!("Failed to handle websocket: {}", e);
+                                error!("Failed to handle WebSocket: {}", e);
                             }
                         }
                         Err(e) => {
-                            error!("Failed to upgrade to websocket: {}", e);
+                            error!("Failed to upgrade to WebSocket: {}", e);
                         }
                     }
                 };
@@ -350,41 +350,13 @@ where
 }
 
 fn spawn_message_forwarder(
-    mut stream: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin + Send + 'static,
-    mut sink: impl Sink<Message, Error = tungstenite::Error> + Unpin + Send + 'static,
-    mut handler: impl WebSocketHandler,
+    stream: impl Stream<Item = Result<Message, tungstenite::Error>> + Unpin + Send + 'static,
+    sink: impl Sink<Message, Error = tungstenite::Error> + Unpin + Send + 'static,
+    handler: impl WebSocketHandler,
     ctx: WebSocketContext,
 ) {
     let span = info_span!("message_forwarder", context = ?ctx);
-    let fut = async move {
-        while let Some(message) = stream.next().await {
-            match message {
-                Ok(message) => {
-                    let Some(message) = handler.handle_message(&ctx, message).await else {
-                        continue
-                    };
-
-                    match sink.send(message).await {
-                        Err(tungstenite::Error::ConnectionClosed) => (),
-                        Err(e) => error!("Websocket send error: {}", e),
-                        _ => (),
-                    }
-                }
-                Err(e) => {
-                    error!("Websocket message error: {}", e);
-
-                    match sink.send(Message::Close(None)).await {
-                        Err(tungstenite::Error::ConnectionClosed) => (),
-                        Err(e) => error!("Websocket close error: {}", e),
-                        _ => (),
-                    };
-
-                    break;
-                }
-            }
-        }
-    };
-
+    let fut = handler.handle_websocket(ctx, stream, sink);
     spawn_with_trace(fut, span);
 }
 

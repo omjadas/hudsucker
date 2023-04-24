@@ -2,7 +2,7 @@ use crate::{HttpHandler, WebSocketHandler};
 
 /// A No-op handler.
 ///
-/// When using this handler, HTTP requests and responses and websocket messages will not be
+/// When using this handler, HTTP requests and responses and WebSocket messages will not be
 /// modified.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct NoopHandler(());
