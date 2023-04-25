@@ -24,7 +24,6 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2.2.1
       - name: cargo build
         uses: actions-rs/cargo@v1
@@ -36,6 +35,27 @@ jobs:
         with:
           command: test
           args: --release --all-features
+
+  minimal-versions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - uses: Swatinem/rust-cache@v2.2.1
+      - name: cargo update
+        uses: actions-rs/cargo@v1
+        with:
+          command: update
+          args: -Z direct-minimal-versions
+      - name: cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-targets --all-features
 
   clippy:
     runs-on: ubuntu-latest
