@@ -1,6 +1,6 @@
 [package]
 name = "hudsucker"
-version = "0.19.3"
+version = "0.19.4"
 edition = "2021"
 description = "MITM HTTP/S proxy"
 documentation = "https://docs.rs/hudsucker"
@@ -46,7 +46,7 @@ reqwest = "0.11.10"
 rustls-native-certs = "0.6.2"
 rustls-pemfile = "1.0.0"
 tls-listener = { version = "0.6.0", features = ["rustls", "hyper-h1", "hyper-h2"] }
-tokio = { version = "1.6.1", features = ["full"] }
+tokio = { version = "1.13.0", features = ["full"] }
 tokio-native-tls = "0.3.0"
 tracing-subscriber = "0.3.0"
 x509-parser = "0.15.0"
