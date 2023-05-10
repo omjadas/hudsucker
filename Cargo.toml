@@ -17,7 +17,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
+async-compression = { version = "0.4.0", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.67"
 bstr = "1.0.0"
 bytes = "1.0.0"
@@ -33,7 +33,7 @@ rand = { version = "0.8.0", optional = true }
 rcgen = { version = "0.10.0", features = ["x509-parser"], optional = true }
 thiserror = "1.0.30"
 time = { version = "0.3.7", optional = true }
-tokio = { version = "1.15.0", features = ["rt"] }
+tokio = { version = "1.24.2", features = ["rt"] }
 tokio-rustls = "0.23.0"
 tokio-tungstenite = "0.18.0"
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
@@ -46,7 +46,7 @@ reqwest = "0.11.10"
 rustls-native-certs = "0.6.2"
 rustls-pemfile = "1.0.0"
 tls-listener = { version = "0.6.0", features = ["rustls", "hyper-h1", "hyper-h2"] }
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.24.2", features = ["full"] }
 tokio-native-tls = "0.3.0"
 tracing-subscriber = "0.3.0"
 x509-parser = "0.15.0"
