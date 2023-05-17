@@ -277,9 +277,13 @@ where
         let uri = req.uri().clone();
 
         #[cfg(any(feature = "rustls-client", feature = "native-tls-client"))]
-        let (client_socket, _) =
-            tokio_tungstenite::connect_async_tls_with_config(req, None, self.websocket_connector)
-                .await?;
+        let (client_socket, _) = tokio_tungstenite::connect_async_tls_with_config(
+            req,
+            None,
+            false,
+            self.websocket_connector,
+        )
+        .await?;
 
         #[cfg(not(any(feature = "rustls-client", feature = "native-tls-client")))]
         let (client_socket, _) = tokio_tungstenite::connect_async(req).await?;

@@ -24,9 +24,9 @@ bytes = "1.0.0"
 futures = "0.3.11"
 http = "0.2.0"
 hyper = { version = "0.14.15", features = ["client", "http1", "server", "tcp"] }
-hyper-rustls = { version = "0.23.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
+hyper-rustls = { version = "0.24.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
 hyper-tls = { version = "0.5.0", optional = true }
-hyper-tungstenite = "0.9.0"
+hyper-tungstenite = "0.10.0"
 moka = { version = "0.11.0", features = ["future"], optional = true }
 openssl = { version = "0.10.39", optional = true }
 rand = { version = "0.8.0", optional = true }
@@ -34,8 +34,8 @@ rcgen = { version = "0.10.0", features = ["x509-parser"], optional = true }
 thiserror = "1.0.30"
 time = { version = "0.3.7", optional = true }
 tokio = { version = "1.24.2", features = ["rt"] }
-tokio-rustls = "0.23.0"
-tokio-tungstenite = "0.18.0"
+tokio-rustls = "0.24.0"
+tokio-tungstenite = "0.19.0"
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 
@@ -45,9 +45,9 @@ criterion = { version = "0.4.0", features = ["async_tokio"] }
 reqwest = "0.11.10"
 rustls-native-certs = "0.6.2"
 rustls-pemfile = "1.0.0"
-tls-listener = { version = "0.6.0", features = ["rustls", "hyper-h1", "hyper-h2"] }
+tls-listener = { version = "0.7.0", features = ["rustls", "hyper-h1", "hyper-h2"] }
 tokio = { version = "1.24.2", features = ["full"] }
-tokio-native-tls = "0.3.0"
+tokio-native-tls = "0.3.1"
 tracing-subscriber = "0.3.0"
 x509-parser = "0.15.0"
 
