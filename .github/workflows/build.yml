@@ -20,73 +20,40 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-          override: true
       - uses: Swatinem/rust-cache@v2.5.0
-      - name: cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-targets --all-features
-      - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --all-features
+      - run: cargo build --release --all-targets --all-features
+      - run: cargo test --release --all-features
 
   minimal-versions:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2.5.0
-      - name: cargo update
-        uses: actions-rs/cargo@v1
-        with:
-          command: update
-          args: -Z direct-minimal-versions
-      - name: cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-targets --all-features
+      - run: cargo update -Z direct-minimal-versions
+      - run: cargo build --release --all-targets --all-features
 
   clippy:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
           components: clippy
       - uses: Swatinem/rust-cache@v2.5.0
-      - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets --all-features
-          name: clippy-report
+      - run: cargo clippy --all-targets --all-features
 
   fmt:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
-          override: true
           components: rustfmt
-      - name: cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
