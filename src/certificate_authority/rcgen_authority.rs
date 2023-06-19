@@ -74,7 +74,7 @@ impl RcgenAuthority {
 
     fn gen_cert(&self, authority: &Authority) -> rustls::Certificate {
         let mut params = rcgen::CertificateParams::default();
-        params.serial_number = Some(thread_rng().gen::<u64>());
+        params.serial_number = Some(thread_rng().gen::<u64>().into());
 
         let not_before = OffsetDateTime::now_utc() - Duration::seconds(NOT_BEFORE_OFFSET);
         params.not_before = not_before;
