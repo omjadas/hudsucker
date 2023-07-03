@@ -149,7 +149,7 @@ pub trait WebSocketHandler: Clone + Send + Sync + 'static {
             match message {
                 Ok(message) => {
                     let Some(message) = self.handle_message(&ctx, message).await else {
-                        continue
+                        continue;
                     };
 
                     match sink.send(message).await {
