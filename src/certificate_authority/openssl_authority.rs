@@ -110,7 +110,7 @@ impl OpensslAuthority {
 #[async_trait]
 impl CertificateAuthority for OpensslAuthority {
     async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
-        if let Some(server_cfg) = self.cache.get(authority) {
+        if let Some(server_cfg) = self.cache.get(authority).await {
             debug!("Using cached server config");
             return server_cfg;
         }
