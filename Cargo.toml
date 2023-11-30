@@ -44,7 +44,7 @@ async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
 criterion = { version = "0.5.0", features = ["async_tokio"] }
 reqwest = "0.11.10"
 rustls-native-certs = "0.6.2"
-rustls-pemfile = "1.0.0"
+rustls-pemfile = "2.0.0"
 tls-listener = { version = "0.8.0", features = ["rustls", "hyper-h1", "hyper-h2"] }
 tokio = { version = "1.24.2", features = ["full"] }
 tokio-native-tls = "0.3.1"
