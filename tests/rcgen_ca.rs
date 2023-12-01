@@ -9,13 +9,18 @@ fn build_ca() -> RcgenAuthority {
     let mut ca_cert_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
     let private_key = rustls::PrivateKey(
         pemfile::pkcs8_private_keys(&mut private_key_bytes)
+            .next()
+            .unwrap()
             .expect("Failed to parse private key")
-            .remove(0),
+            .secret_pkcs8_der()
+            .to_vec(),
     );
     let ca_cert = rustls::Certificate(
         pemfile::certs(&mut ca_cert_bytes)
+            .next()
+            .unwrap()
             .expect("Failed to parse CA certificate")
-            .remove(0),
+            .to_vec(),
     );
 
     RcgenAuthority::new(private_key, ca_cert, 1_000)

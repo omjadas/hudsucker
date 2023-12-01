@@ -130,7 +130,13 @@ fn rustls_client_config() -> rustls::ClientConfig {
     }
 
     let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
-    let ca_cert = rustls::Certificate(pemfile::certs(&mut ca_cert_bytes).unwrap().remove(0));
+    let ca_cert = rustls::Certificate(
+        pemfile::certs(&mut ca_cert_bytes)
+            .next()
+            .unwrap()
+            .expect("Failed to parse CA certificate")
+            .to_vec(),
+    );
 
     roots.add(&ca_cert).unwrap();
 
