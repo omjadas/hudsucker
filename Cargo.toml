@@ -23,7 +23,7 @@ bstr = "1.0.0"
 bytes = "1.0.0"
 futures = "0.3.11"
 http = "0.2.0"
-hyper = { version = "0.14.15", features = ["client", "http1", "server", "tcp"] }
+hyper = { version = "1.1.0", features = ["client", "http1", "server", "tcp"] }
 hyper-rustls = { version = "0.24.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
 hyper-tls = { version = "0.5.0", optional = true }
 hyper-tungstenite = "0.11.1"
