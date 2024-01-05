@@ -31,21 +31,6 @@ impl<T> Rewind<T> {
             inner: io,
         }
     }
-
-    #[allow(dead_code)]
-    pub(crate) fn rewind(&mut self, bs: Bytes) {
-        debug_assert!(self.pre.is_none());
-        self.pre = Some(bs);
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn into_inner(self) -> (T, Bytes) {
-        (self.inner, self.pre.unwrap_or_else(Bytes::new))
-    }
-
-    // pub(crate) fn get_mut(&mut self) -> &mut T {
-    //     &mut self.inner
-    // }
 }
 
 impl<T> AsyncRead for Rewind<T>
