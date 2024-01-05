@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use rand::{thread_rng, Rng};
-use rcgen::{DistinguishedName, DnType, KeyPair, RcgenError, SanType};
+use rcgen::{DistinguishedName, DnType, KeyPair, SanType};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{self, ServerConfig};
@@ -114,7 +114,7 @@ impl RcgenAuthority {
         )
     }
 
-    fn validate(&self) -> Result<(), RcgenError> {
+    fn validate(&self) -> Result<(), rcgen::Error> {
         let key_pair = rcgen::KeyPair::from_der(&self.private_key.0)?;
         rcgen::CertificateParams::from_ca_cert_der(&self.ca_cert.0, key_pair)?;
         Ok(())
