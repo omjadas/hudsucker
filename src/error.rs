@@ -9,6 +9,8 @@ pub enum Error {
     Tls(#[from] rcgen::Error),
     #[error("network error")]
     Network(#[from] hyper::Error),
+    #[error("io error")]
+    Io(#[from] std::io::Error),
     #[error("unable to decode body")]
     Decode,
     #[error("unknown error")]

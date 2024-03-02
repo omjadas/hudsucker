@@ -1,19 +1,23 @@
 use crate::{
-    certificate_authority::CertificateAuthority, HttpContext, HttpHandler, RequestOrResponse,
-    Rewind, WebSocketContext, WebSocketHandler,
+    body::Body, certificate_authority::CertificateAuthority, HttpContext, HttpHandler,
+    RequestOrResponse, Rewind, WebSocketContext, WebSocketHandler,
 };
 use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
+use http_body_util::Empty;
 use hyper::{
-    client::connect::Connect, header::Entry, server::conn::Http, service::service_fn,
-    upgrade::Upgraded, Body, Client, Method, Request, Response, StatusCode, Uri,
+    body::{Bytes, Incoming},
+    header::Entry,
+    service::service_fn,
+    upgrade::Upgraded,
+    Method, Request, Response, StatusCode, Uri,
+};
+use hyper_util::{
+    client::legacy::{connect::Connect, Client},
+    rt::{TokioExecutor, TokioIo},
 };
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite},
-    net::TcpStream,
-    task::JoinHandle,
-};
+use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
@@ -24,7 +28,7 @@ use tracing::{error, info_span, instrument, warn, Instrument, Span};
 fn bad_request() -> Response<Body> {
     Response::builder()
         .status(StatusCode::BAD_REQUEST)
-        .body(Body::empty())
+        .body(Empty::new().into())
         .expect("Failed to build response")
 }
 
@@ -37,7 +41,7 @@ fn spawn_with_trace<T: Send + Sync + 'static>(
 
 pub(crate) struct InternalProxy<C, CA, H, W> {
     pub ca: Arc<CA>,
-    pub client: Client<C>,
+    pub client: Client<C, Body>,
     pub http_handler: H,
     pub websocket_handler: W,
     pub websocket_connector: Option<Connector>,
@@ -84,12 +88,15 @@ where
             client_addr = %self.client_addr,
         )
     )]
-    pub(crate) async fn proxy(mut self, req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    pub(crate) async fn proxy(
+        mut self,
+        req: Request<Incoming>,
+    ) -> Result<Response<Body>, Infallible> {
         let ctx = self.context();
 
         let req = match self
             .http_handler
-            .handle_request(&ctx, req)
+            .handle_request(&ctx, req.map(Body::from))
             .instrument(info_span!("handle_request"))
             .await
         {
@@ -111,7 +118,7 @@ where
             match res {
                 Ok(res) => Ok(self
                     .http_handler
-                    .handle_response(&ctx, res)
+                    .handle_response(&ctx, res.map(Body::from))
                     .instrument(info_span!("handle_response"))
                     .await),
                 Err(err) => Ok(self
@@ -129,7 +136,8 @@ where
                 let span = info_span!("process_connect");
                 let fut = async move {
                     match hyper::upgrade::on(&mut req).await {
-                        Ok(mut upgraded) => {
+                        Ok(upgraded) => {
+                            let mut upgraded = TokioIo::new(upgraded);
                             let mut buffer = [0; 4];
                             let bytes_read = match upgraded.read(&mut buffer).await {
                                 Ok(bytes_read) => bytes_read,
@@ -141,7 +149,7 @@ where
 
                             let mut upgraded = Rewind::new_buffered(
                                 upgraded,
-                                bytes::Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
+                                Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );
 
                             if self
@@ -150,8 +158,13 @@ where
                                 .await
                             {
                                 if buffer == *b"GET " {
-                                    if let Err(e) =
-                                        self.serve_stream(upgraded, Scheme::HTTP, authority).await
+                                    if let Err(e) = self
+                                        .serve_stream(
+                                            TokioIo::new(upgraded),
+                                            Scheme::HTTP,
+                                            authority,
+                                        )
+                                        .await
                                     {
                                         error!("WebSocket connect error: {}", e);
                                     }
@@ -168,7 +181,7 @@ where
                                         .accept(upgraded)
                                         .await
                                     {
-                                        Ok(stream) => stream,
+                                        Ok(stream) => TokioIo::new(stream),
                                         Err(e) => {
                                             error!("Failed to establish TLS connection: {}", e);
                                             return;
@@ -214,7 +227,7 @@ where
                 };
 
                 spawn_with_trace(fut, span);
-                Response::new(Body::empty())
+                Response::new(Empty::new().into())
             }
             None => bad_request(),
         }
@@ -262,7 +275,7 @@ where
                 };
 
                 spawn_with_trace(fut, span);
-                res
+                res.map(Into::into)
             }
             Err(_) => bad_request(),
         }
@@ -271,7 +284,7 @@ where
     #[instrument(skip_all)]
     async fn handle_websocket(
         self,
-        server_socket: WebSocketStream<Upgraded>,
+        server_socket: WebSocketStream<TokioIo<Upgraded>>,
         req: Request<()>,
     ) -> Result<(), tungstenite::Error> {
         let uri = req.uri().clone();
@@ -324,9 +337,9 @@ where
         stream: I,
         scheme: Scheme,
         authority: Authority,
-    ) -> Result<(), hyper::Error>
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
     where
-        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        I: hyper::rt::Read + hyper::rt::Write + Unpin + Send + 'static,
     {
         let service = service_fn(|mut req| {
             if req.version() == hyper::Version::HTTP_10 || req.version() == hyper::Version::HTTP_11
@@ -346,9 +359,8 @@ where
             self.clone().proxy(req)
         });
 
-        Http::new()
-            .serve_connection(stream, service)
-            .with_upgrades()
+        hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+            .serve_connection_with_upgrades(stream, service)
             .await
     }
 }
@@ -382,6 +394,7 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper_util::client::legacy::connect::HttpConnector;
     use tokio_rustls::rustls::ServerConfig;
 
     struct CA;
@@ -393,12 +406,10 @@ mod tests {
         }
     }
 
-    fn build_proxy(
-    ) -> InternalProxy<hyper::client::HttpConnector, CA, crate::NoopHandler, crate::NoopHandler>
-    {
+    fn build_proxy() -> InternalProxy<HttpConnector, CA, crate::NoopHandler, crate::NoopHandler> {
         InternalProxy {
             ca: Arc::new(CA),
-            client: hyper::Client::new(),
+            client: Client::builder(TokioExecutor::new()).build(HttpConnector::new()),
             http_handler: crate::NoopHandler::new(),
             websocket_handler: crate::NoopHandler::new(),
             websocket_connector: None,
@@ -464,7 +475,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("/foo/bar?baz")
-                .body(Body::empty())
+                .body(Empty::new().into())
                 .unwrap();
 
             let res = proxy.process_connect(req);
@@ -482,7 +493,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("/foo/bar?baz")
-                .body(Body::empty())
+                .body(Empty::new().into())
                 .unwrap();
 
             let res = proxy.upgrade_websocket(req);
@@ -496,7 +507,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("http://example.com/foo/bar?baz")
-                .body(Body::empty())
+                .body(Empty::new().into())
                 .unwrap();
 
             let res = proxy.upgrade_websocket(req);

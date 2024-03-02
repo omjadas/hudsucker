@@ -1,9 +1,8 @@
 // adapted from https://github.com/hyperium/hyper/blob/master/src/common/io/rewind.rs
 
-use bytes::{Buf, Bytes};
+use hyper::body::{Buf, Bytes};
 use std::{
     cmp, io,
-    marker::Unpin,
     pin::Pin,
     task::{self, Poll},
 };
@@ -49,7 +48,7 @@ where
                 // TODO: There should be a way to do following two lines cleaner...
                 buf.put_slice(&prefix[..copy_len]);
                 prefix.advance(copy_len);
-                // Put back whats left
+                // Put back what's left
                 if !prefix.is_empty() {
                     self.pre = Some(prefix);
                 }

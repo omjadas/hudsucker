@@ -16,6 +16,7 @@
 //! - `rcgen-ca`: Enables [`certificate_authority::RcgenAuthority`] (enabled by default).
 //! - `rustls-client`: Enables [`ProxyBuilder::with_rustls_client`] (enabled by default).
 
+mod body;
 #[cfg(feature = "decoder")]
 mod decoder;
 mod error;
@@ -26,7 +27,8 @@ mod rewind;
 pub mod certificate_authority;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use hyper::{Body, Request, Response, StatusCode, Uri};
+use http_body_util::Empty;
+use hyper::{Request, Response, StatusCode, Uri};
 use std::net::SocketAddr;
 use tokio_tungstenite::tungstenite::{self, Message};
 use tracing::error;
@@ -36,11 +38,13 @@ pub(crate) use rewind::Rewind;
 pub use async_trait;
 pub use futures;
 pub use hyper;
+pub use hyper_util;
 #[cfg(feature = "openssl-ca")]
 pub use openssl;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite;
 
+pub use body::Body;
 #[cfg(feature = "decoder")]
 pub use decoder::{decode_request, decode_response};
 pub use error::Error;
@@ -118,11 +122,15 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
     }
 
     /// This handler will be called if a proxy request fails. Default response is a 502 Bad Gateway.
-    async fn handle_error(&mut self, _ctx: &HttpContext, err: hyper::Error) -> Response<Body> {
+    async fn handle_error(
+        &mut self,
+        _ctx: &HttpContext,
+        err: hyper_util::client::legacy::Error,
+    ) -> Response<Body> {
         error!("Failed to forward request: {}", err);
         Response::builder()
             .status(StatusCode::BAD_GATEWAY)
-            .body(Body::empty())
+            .body(Empty::new().into())
             .expect("Failed to build response")
     }
 
