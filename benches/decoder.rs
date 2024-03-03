@@ -4,8 +4,9 @@ use hudsucker::{
     decode_request, decode_response,
     hyper::{
         header::{CONTENT_ENCODING, CONTENT_LENGTH},
-        Body, Request, Response,
+        Request, Response,
     },
+    Body,
 };
 use tokio::io::BufReader;
 use tokio_util::io::ReaderStream;

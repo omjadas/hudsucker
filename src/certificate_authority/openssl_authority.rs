@@ -32,7 +32,7 @@ use tracing::debug;
 /// ```rust
 /// use hudsucker::{
 ///     certificate_authority::OpensslAuthority,
-///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509}
+///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
 /// };
 ///
 /// let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");

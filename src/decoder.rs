@@ -170,7 +170,11 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///
 /// #[async_trait]
 /// impl HttpHandler for MyHandler {
-///     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
+///     async fn handle_response(
+///         &mut self,
+///         _ctx: &HttpContext,
+///         res: Response<Body>,
+///     ) -> Response<Body> {
 ///         let res = decode_response(res).unwrap();
 ///
 ///         // Do something with the response
