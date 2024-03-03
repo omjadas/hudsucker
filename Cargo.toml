@@ -26,7 +26,7 @@ http = "0.2.0"
 hyper = { version = "0.14.15", features = ["client", "http1", "server", "tcp"] }
 hyper-rustls = { version = "0.24.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
 hyper-tls = { version = "0.5.0", optional = true }
-hyper-tungstenite = "0.11.1"
+hyper-tungstenite = "0.13.0"
 moka = { version = "0.12.0", features = ["future"], optional = true }
 openssl = { version = "0.10.39", optional = true }
 rand = { version = "0.8.0", optional = true }
@@ -35,7 +35,7 @@ thiserror = "1.0.30"
 time = { version = "0.3.20", optional = true }
 tokio = { version = "1.24.2", features = ["rt"] }
 tokio-rustls = "0.24.0"
-tokio-tungstenite = "0.20.0"
+tokio-tungstenite = "0.21.0"
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.23", features = ["log"] }
 
