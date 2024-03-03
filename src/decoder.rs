@@ -104,10 +104,8 @@ fn decode_body<'a>(
 ///
 /// ```rust
 /// use hudsucker::{
-///     async_trait::async_trait,
-///     decode_request,
-///     hyper::{Body, Request, Response},
-///     Error, HttpContext, HttpHandler, RequestOrResponse,
+///     async_trait::async_trait, decode_request, hyper::Request, Body, HttpContext, HttpHandler,
+///     RequestOrResponse,
 /// };
 ///
 /// #[derive(Clone)]
@@ -164,10 +162,7 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///
 /// ```rust
 /// use hudsucker::{
-///     async_trait::async_trait,
-///     decode_response,
-///     hyper::{Body, Request, Response},
-///     Error, HttpContext, HttpHandler, RequestOrResponse,
+///     async_trait::async_trait, decode_response, hyper::Response, Body, HttpContext, HttpHandler,
 /// };
 ///
 /// #[derive(Clone)]

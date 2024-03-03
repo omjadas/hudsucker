@@ -1,7 +1,7 @@
 use hudsucker::{
     async_trait::async_trait,
     certificate_authority::RcgenAuthority,
-    hyper::{Body, Request, Response},
+    hyper::{Request, Response},
     tokio_tungstenite::tungstenite::Message,
     *,
 };
@@ -49,21 +49,13 @@ async fn main() {
 
     let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
     let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.cer");
-    let private_key = rustls::PrivateKey(
-        pemfile::pkcs8_private_keys(&mut private_key_bytes)
-            .next()
-            .unwrap()
-            .expect("Failed to parse private key")
-            .secret_pkcs8_der()
-            .to_vec(),
-    );
-    let ca_cert = rustls::Certificate(
-        pemfile::certs(&mut ca_cert_bytes)
-            .next()
-            .unwrap()
-            .expect("Failed to parse CA certificate")
-            .to_vec(),
-    );
+    let private_key = pemfile::private_key(&mut private_key_bytes)
+        .unwrap()
+        .expect("Failed to parse private key");
+    let ca_cert = pemfile::certs(&mut ca_cert_bytes)
+        .next()
+        .unwrap()
+        .expect("Failed to parse CA certificate");
 
     let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority");
@@ -74,9 +66,10 @@ async fn main() {
         .with_ca(ca)
         .with_http_handler(LogHandler)
         .with_websocket_handler(LogHandler)
+        .with_graceful_shutdown(shutdown_signal())
         .build();
 
-    if let Err(e) = proxy.start(shutdown_signal()).await {
+    if let Err(e) = proxy.start().await {
         error!("{}", e);
     }
 }

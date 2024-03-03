@@ -37,21 +37,13 @@ pub use builder::ProxyBuilder;
 /// #
 /// # let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
 /// # let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
-/// # let private_key = rustls::PrivateKey(
-/// #     pemfile::pkcs8_private_keys(&mut private_key_bytes)
+/// # let private_key = pemfile::private_key(&mut private_key_bytes)
+/// #         .unwrap()
+/// #         .expect("Failed to parse private key");
+/// # let ca_cert = pemfile::certs(&mut ca_cert_bytes)
 /// #         .next()
 /// #         .unwrap()
-/// #         .expect("Failed to parse private key")
-/// #         .secret_pkcs8_der()
-/// #         .to_vec(),
-/// # );
-/// # let ca_cert = rustls::Certificate(
-/// #     pemfile::certs(&mut ca_cert_bytes)
-/// #         .next()
-/// #         .unwrap()
-/// #         .expect("Failed to parse CA certificate")
-/// #         .to_vec(),
-/// # );
+/// #         .expect("Failed to parse CA certificate");
 /// #
 /// # let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
 /// #     .expect("Failed to create Certificate Authority");

@@ -1,7 +1,7 @@
 use hudsucker::{
     async_trait::async_trait,
     certificate_authority::OpensslAuthority,
-    hyper::{Body, Request, Response},
+    hyper::{Request, Response},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
     tokio_tungstenite::tungstenite::Message,
     *,
@@ -60,9 +60,10 @@ async fn main() {
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(LogHandler)
+        .with_graceful_shutdown(shutdown_signal())
         .build();
 
-    if let Err(e) = proxy.start(shutdown_signal()).await {
+    if let Err(e) = proxy.start().await {
         error!("{}", e);
     }
 }
