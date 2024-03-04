@@ -2,7 +2,6 @@ use async_compression::tokio::bufread::GzipEncoder;
 use futures::{SinkExt, StreamExt};
 use http_body_util::Empty;
 use hudsucker::{
-    async_trait::async_trait,
     certificate_authority::CertificateAuthority,
     decode_request, decode_response,
     hyper::{
@@ -332,7 +331,6 @@ impl TestHandler {
     }
 }
 
-#[async_trait]
 impl HttpHandler for TestHandler {
     async fn handle_request(
         &mut self,
@@ -354,7 +352,6 @@ impl HttpHandler for TestHandler {
     }
 }
 
-#[async_trait]
 impl WebSocketHandler for TestHandler {
     async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         self.message_counter.fetch_add(1, Ordering::Relaxed);

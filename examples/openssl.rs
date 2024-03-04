@@ -1,5 +1,4 @@
 use hudsucker::{
-    async_trait::async_trait,
     certificate_authority::OpensslAuthority,
     hyper::{Request, Response},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
@@ -18,7 +17,6 @@ async fn shutdown_signal() {
 #[derive(Clone)]
 struct LogHandler;
 
-#[async_trait]
 impl HttpHandler for LogHandler {
     async fn handle_request(
         &mut self,
@@ -35,7 +33,6 @@ impl HttpHandler for LogHandler {
     }
 }
 
-#[async_trait]
 impl WebSocketHandler for LogHandler {
     async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         println!("{:?}", msg);

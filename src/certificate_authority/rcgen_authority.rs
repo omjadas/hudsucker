@@ -2,7 +2,6 @@ use crate::{
     certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS},
     Error,
 };
-use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use rand::{thread_rng, Rng};
@@ -117,7 +116,6 @@ impl RcgenAuthority {
     }
 }
 
-#[async_trait]
 impl CertificateAuthority for RcgenAuthority {
     async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
         if let Some(server_cfg) = self.cache.get(authority).await {

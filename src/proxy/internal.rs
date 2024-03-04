@@ -399,7 +399,6 @@ mod tests {
 
     struct CA;
 
-    #[async_trait::async_trait]
     impl CertificateAuthority for CA {
         async fn gen_server_config(&self, _authority: &Authority) -> Arc<ServerConfig> {
             unimplemented!();
