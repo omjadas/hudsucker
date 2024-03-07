@@ -102,4 +102,5 @@ required-features = ["rcgen-ca", "rustls-client"]
 
 [profile.bench]
 lto = true
+debug = true
 codegen-units = 1
