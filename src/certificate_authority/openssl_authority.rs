@@ -1,5 +1,4 @@
 use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS};
-use async_trait::async_trait;
 use http::uri::Authority;
 use moka::future::Cache;
 use openssl::{
@@ -15,7 +14,10 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tokio_rustls::rustls::{self, ServerConfig};
+use tokio_rustls::rustls::{
+    pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
+    ServerConfig,
+};
 use tracing::debug;
 
 /// Issues certificates for use when communicating with clients.
@@ -29,7 +31,7 @@ use tracing::debug;
 /// ```rust
 /// use hudsucker::{
 ///     certificate_authority::OpensslAuthority,
-///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509}
+///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
 /// };
 ///
 /// let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
@@ -40,10 +42,9 @@ use tracing::debug;
 /// let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "openssl-ca")))]
-#[derive(Clone)]
 pub struct OpensslAuthority {
     pkey: PKey<Private>,
-    private_key: rustls::PrivateKey,
+    private_key: PrivateKeyDer<'static>,
     ca_cert: X509,
     hash: MessageDigest,
     cache: Cache<Authority, Arc<ServerConfig>>,
@@ -52,10 +53,10 @@ pub struct OpensslAuthority {
 impl OpensslAuthority {
     /// Creates a new openssl authority.
     pub fn new(pkey: PKey<Private>, ca_cert: X509, hash: MessageDigest, cache_size: u64) -> Self {
-        let private_key = rustls::PrivateKey(
-            pkey.private_key_to_der()
+        let private_key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(
+            pkey.private_key_to_pkcs8()
                 .expect("Failed to encode private key"),
-        );
+        ));
 
         Self {
             pkey,
@@ -69,7 +70,7 @@ impl OpensslAuthority {
         }
     }
 
-    fn gen_cert(&self, authority: &Authority) -> Result<rustls::Certificate, ErrorStack> {
+    fn gen_cert(&self, authority: &Authority) -> Result<CertificateDer<'static>, ErrorStack> {
         let mut name_builder = X509NameBuilder::new()?;
         name_builder.append_entry_by_text("CN", authority.host())?;
         let name = name_builder.build();
@@ -103,11 +104,10 @@ impl OpensslAuthority {
 
         x509_builder.sign(&self.pkey, self.hash)?;
         let x509 = x509_builder.build();
-        Ok(rustls::Certificate(x509.to_der()?))
+        Ok(CertificateDer::from(x509.to_der()?))
     }
 }
 
-#[async_trait]
 impl CertificateAuthority for OpensslAuthority {
     async fn gen_server_config(&self, authority: &Authority) -> Arc<ServerConfig> {
         if let Some(server_cfg) = self.cache.get(authority).await {
@@ -121,9 +121,8 @@ impl CertificateAuthority for OpensslAuthority {
             .unwrap_or_else(|_| panic!("Failed to generate certificate for {}", authority))];
 
         let mut server_cfg = ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(certs, self.private_key.clone())
+            .with_single_cert(certs, self.private_key.clone_key())
             .expect("Failed to build ServerConfig");
 
         server_cfg.alpn_protocols = vec![
@@ -168,13 +167,13 @@ mod tests {
         let c3 = ca.gen_cert(&authority1).unwrap();
         let c4 = ca.gen_cert(&authority2).unwrap();
 
-        let (_, cert1) = x509_parser::parse_x509_certificate(&c1.0).unwrap();
-        let (_, cert2) = x509_parser::parse_x509_certificate(&c2.0).unwrap();
+        let (_, cert1) = x509_parser::parse_x509_certificate(&c1).unwrap();
+        let (_, cert2) = x509_parser::parse_x509_certificate(&c2).unwrap();
 
         assert_ne!(cert1.raw_serial(), cert2.raw_serial());
 
-        let (_, cert3) = x509_parser::parse_x509_certificate(&c3.0).unwrap();
-        let (_, cert4) = x509_parser::parse_x509_certificate(&c4.0).unwrap();
+        let (_, cert3) = x509_parser::parse_x509_certificate(&c3).unwrap();
+        let (_, cert4) = x509_parser::parse_x509_certificate(&c4).unwrap();
 
         assert_ne!(cert3.raw_serial(), cert4.raw_serial());
 

@@ -23,6 +23,7 @@ async fn https_rustls() {
         common::rustls_client(),
         common::rustls_websocket_connector(),
     )
+    .await
     .unwrap();
 
     let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
@@ -49,6 +50,7 @@ async fn https_native_tls() {
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
     )
+    .await
     .unwrap();
 
     let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
@@ -75,6 +77,7 @@ async fn without_intercept() {
         common::http_client(),
         common::plain_websocket_connector(),
     )
+    .await
     .unwrap();
 
     let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
@@ -101,9 +104,10 @@ async fn decodes_response() {
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
     )
+    .await
     .unwrap();
 
-    let (server_addr, stop_server) = common::start_http_server().unwrap();
+    let (server_addr, stop_server) = common::start_http_server().await.unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 
     let res = client
@@ -121,8 +125,8 @@ async fn decodes_response() {
 
 #[tokio::test]
 async fn noop() {
-    let (proxy_addr, stop_proxy) = common::start_noop_proxy(build_ca()).unwrap();
-    let (server_addr, stop_server) = common::start_http_server().unwrap();
+    let (proxy_addr, stop_proxy) = common::start_noop_proxy(build_ca()).await.unwrap();
+    let (server_addr, stop_server) = common::start_http_server().await.unwrap();
     let client = common::build_client(&proxy_addr.to_string());
 
     let res = client

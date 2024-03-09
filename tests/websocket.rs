@@ -1,8 +1,6 @@
 use async_http_proxy::http_connect_tokio;
 use futures::{SinkExt, StreamExt};
-use hudsucker::{
-    certificate_authority::RcgenAuthority, rustls, tokio_tungstenite::tungstenite::Message,
-};
+use hudsucker::{certificate_authority::RcgenAuthority, tokio_tungstenite::tungstenite::Message};
 use rustls_pemfile as pemfile;
 use std::sync::atomic::Ordering;
 use tokio::net::TcpStream;
@@ -13,21 +11,13 @@ mod common;
 fn build_ca() -> RcgenAuthority {
     let mut private_key_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.key");
     let mut ca_cert_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
-    let private_key = rustls::PrivateKey(
-        pemfile::pkcs8_private_keys(&mut private_key_bytes)
-            .next()
-            .unwrap()
-            .expect("Failed to parse private key")
-            .secret_pkcs8_der()
-            .to_vec(),
-    );
-    let ca_cert = rustls::Certificate(
-        pemfile::certs(&mut ca_cert_bytes)
-            .next()
-            .unwrap()
-            .expect("Failed to parse CA certificate")
-            .to_vec(),
-    );
+    let private_key = pemfile::private_key(&mut private_key_bytes)
+        .unwrap()
+        .expect("Failed to parse private key");
+    let ca_cert = pemfile::certs(&mut ca_cert_bytes)
+        .next()
+        .unwrap()
+        .expect("Failed to parse CA certificate");
 
     RcgenAuthority::new(private_key, ca_cert, 1_000)
         .expect("Failed to create Certificate Authority")
@@ -40,9 +30,10 @@ async fn http() {
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
     )
+    .await
     .unwrap();
 
-    let (server_addr, stop_server) = common::start_http_server().unwrap();
+    let (server_addr, stop_server) = common::start_http_server().await.unwrap();
 
     let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
     http_connect_tokio(
@@ -75,6 +66,7 @@ async fn https_rustls() {
         common::rustls_client(),
         common::rustls_websocket_connector(),
     )
+    .await
     .unwrap();
 
     let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
@@ -111,6 +103,7 @@ async fn https_native_tls() {
         common::native_tls_client(),
         common::native_tls_websocket_connector(),
     )
+    .await
     .unwrap();
 
     let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
@@ -147,9 +140,10 @@ async fn without_intercept() {
         common::http_client(),
         common::plain_websocket_connector(),
     )
+    .await
     .unwrap();
 
-    let (server_addr, stop_server) = common::start_http_server().unwrap();
+    let (server_addr, stop_server) = common::start_http_server().await.unwrap();
 
     let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
     http_connect_tokio(
@@ -177,8 +171,8 @@ async fn without_intercept() {
 
 #[tokio::test]
 async fn noop() {
-    let (proxy_addr, stop_proxy) = common::start_noop_proxy(build_ca()).unwrap();
-    let (server_addr, stop_server) = common::start_http_server().unwrap();
+    let (proxy_addr, stop_proxy) = common::start_noop_proxy(build_ca()).await.unwrap();
+    let (server_addr, stop_server) = common::start_http_server().await.unwrap();
 
     let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
     http_connect_tokio(

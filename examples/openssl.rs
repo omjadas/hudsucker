@@ -1,7 +1,6 @@
 use hudsucker::{
-    async_trait::async_trait,
     certificate_authority::OpensslAuthority,
-    hyper::{Body, Request, Response},
+    hyper::{Request, Response},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
     tokio_tungstenite::tungstenite::Message,
     *,
@@ -18,7 +17,6 @@ async fn shutdown_signal() {
 #[derive(Clone)]
 struct LogHandler;
 
-#[async_trait]
 impl HttpHandler for LogHandler {
     async fn handle_request(
         &mut self,
@@ -35,7 +33,6 @@ impl HttpHandler for LogHandler {
     }
 }
 
-#[async_trait]
 impl WebSocketHandler for LogHandler {
     async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
         println!("{:?}", msg);
@@ -60,9 +57,10 @@ async fn main() {
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(LogHandler)
+        .with_graceful_shutdown(shutdown_signal())
         .build();
 
-    if let Err(e) = proxy.start(shutdown_signal()).await {
+    if let Err(e) = proxy.start().await {
         error!("{}", e);
     }
 }
