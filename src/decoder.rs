@@ -34,6 +34,19 @@ impl<T: Stream<Item = Result<Frame<Bytes>, Error>> + Unpin> Stream for IoStream<
     }
 }
 
+fn decode(
+    encoding: &[u8],
+    reader: impl AsyncBufRead + Send + Sync + Unpin + 'static,
+) -> Result<Box<dyn AsyncRead + Send + Sync + Unpin>, Error> {
+    Ok(match encoding {
+        b"gzip" | b"x-gzip" => Box::new(GzipDecoder::new(reader)),
+        b"deflate" => Box::new(ZlibDecoder::new(reader)),
+        b"br" => Box::new(BrotliDecoder::new(reader)),
+        b"zstd" => Box::new(ZstdDecoder::new(reader)),
+        _ => Err(Error::Decode)?,
+    })
+}
+
 enum Decoder<T> {
     Body(T),
     Decoder(Box<dyn AsyncRead + Send + Sync + Unpin>),
@@ -45,20 +58,12 @@ impl Decoder<Body> {
             return Ok(self);
         }
 
-        let reader: Box<dyn AsyncBufRead + Send + Sync + Unpin> = match self {
-            Self::Body(body) => Box::new(StreamReader::new(IoStream(BodyStream::new(body)))),
-            Self::Decoder(decoder) => Box::new(BufReader::new(decoder)),
-        };
-
-        let decoder: Box<dyn AsyncRead + Send + Sync + Unpin> = match encoding {
-            b"gzip" | b"x-gzip" => Box::new(GzipDecoder::new(reader)),
-            b"deflate" => Box::new(ZlibDecoder::new(reader)),
-            b"br" => Box::new(BrotliDecoder::new(reader)),
-            b"zstd" => Box::new(ZstdDecoder::new(reader)),
-            _ => return Err(Error::Decode),
-        };
-
-        Ok(Self::Decoder(decoder))
+        Ok(Self::Decoder(match self {
+            Self::Body(body) => {
+                decode(encoding, StreamReader::new(IoStream(BodyStream::new(body))))
+            }
+            Self::Decoder(decoder) => decode(encoding, BufReader::new(decoder)),
+        }?))
     }
 }
 
