@@ -137,6 +137,7 @@ where
                     let http_handler = self.http_handler.clone();
                     let websocket_handler = self.websocket_handler.clone();
                     let websocket_connector = self.websocket_connector.clone();
+                    let shutdown_guard = shutdown.guard();
 
                     shutdown.spawn_task_fn(move |guard| async move {
                         let conn = server
@@ -150,6 +151,7 @@ where
                                         websocket_handler: websocket_handler.clone(),
                                         websocket_connector: websocket_connector.clone(),
                                         client_addr,
+                                        shutdown_guard: shutdown_guard.clone(),
                                     }
                                     .proxy(req)
                                 }),

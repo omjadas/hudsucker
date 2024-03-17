@@ -18,6 +18,7 @@ use hyper_util::{
 };
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
+use tokio_graceful::ShutdownGuard;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
@@ -46,6 +47,7 @@ pub(crate) struct InternalProxy<C, CA, H, W> {
     pub websocket_handler: W,
     pub websocket_connector: Option<Connector>,
     pub client_addr: SocketAddr,
+    pub shutdown_guard: ShutdownGuard,
 }
 
 impl<C, CA, H, W> Clone for InternalProxy<C, CA, H, W>
@@ -62,6 +64,7 @@ where
             websocket_handler: self.websocket_handler.clone(),
             websocket_connector: self.websocket_connector.clone(),
             client_addr: self.client_addr,
+            shutdown_guard: self.shutdown_guard.clone(),
         }
     }
 }
@@ -395,6 +398,7 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
 mod tests {
     use super::*;
     use hyper_util::client::legacy::connect::HttpConnector;
+    use tokio_graceful::Shutdown;
     use tokio_rustls::rustls::ServerConfig;
 
     struct CA;
@@ -413,6 +417,7 @@ mod tests {
             websocket_handler: crate::NoopHandler::new(),
             websocket_connector: None,
             client_addr: "127.0.0.1:8080".parse().unwrap(),
+            shutdown_guard: Shutdown::no_signal().guard(),
         }
     }
 
