@@ -137,25 +137,23 @@ where
                     let http_handler = self.http_handler.clone();
                     let websocket_handler = self.websocket_handler.clone();
                     let websocket_connector = self.websocket_connector.clone();
-                    let shutdown_guard = shutdown.guard();
 
                     shutdown.spawn_task_fn(move |guard| async move {
-                        let conn = server
-                            .serve_connection_with_upgrades(
-                                TokioIo::new(tcp),
-                                service_fn(move |req| {
-                                    InternalProxy {
-                                        ca: Arc::clone(&ca),
-                                        client: client.clone(),
-                                        http_handler: http_handler.clone(),
-                                        websocket_handler: websocket_handler.clone(),
-                                        websocket_connector: websocket_connector.clone(),
-                                        client_addr,
-                                        shutdown_guard: shutdown_guard.clone(),
-                                    }
-                                    .proxy(req)
-                                }),
-                            );
+                        let conn = server.serve_connection_with_upgrades(
+                            TokioIo::new(tcp),
+                            service_fn(|req| {
+                                InternalProxy {
+                                    ca: Arc::clone(&ca),
+                                    client: client.clone(),
+                                    server: server.clone(),
+                                    http_handler: http_handler.clone(),
+                                    websocket_handler: websocket_handler.clone(),
+                                    websocket_connector: websocket_connector.clone(),
+                                    client_addr,
+                                }
+                                .proxy(req)
+                            }),
+                        );
 
                         let mut conn = std::pin::pin!(conn);
 

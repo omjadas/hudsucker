@@ -15,10 +15,10 @@ use hyper::{
 use hyper_util::{
     client::legacy::{connect::Connect, Client},
     rt::{TokioExecutor, TokioIo},
+    server,
 };
 use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
-use tokio_graceful::ShutdownGuard;
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
@@ -43,11 +43,11 @@ fn spawn_with_trace<T: Send + Sync + 'static>(
 pub(crate) struct InternalProxy<C, CA, H, W> {
     pub ca: Arc<CA>,
     pub client: Client<C, Body>,
+    pub server: server::conn::auto::Builder<TokioExecutor>,
     pub http_handler: H,
     pub websocket_handler: W,
     pub websocket_connector: Option<Connector>,
     pub client_addr: SocketAddr,
-    pub shutdown_guard: ShutdownGuard,
 }
 
 impl<C, CA, H, W> Clone for InternalProxy<C, CA, H, W>
@@ -60,11 +60,11 @@ where
         InternalProxy {
             ca: Arc::clone(&self.ca),
             client: self.client.clone(),
+            server: self.server.clone(),
             http_handler: self.http_handler.clone(),
             websocket_handler: self.websocket_handler.clone(),
             websocket_connector: self.websocket_connector.clone(),
             client_addr: self.client_addr,
-            shutdown_guard: self.shutdown_guard.clone(),
         }
     }
 }
@@ -362,7 +362,7 @@ where
             self.clone().proxy(req)
         });
 
-        hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+        self.server
             .serve_connection_with_upgrades(stream, service)
             .await
     }
@@ -398,7 +398,6 @@ fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
 mod tests {
     use super::*;
     use hyper_util::client::legacy::connect::HttpConnector;
-    use tokio_graceful::Shutdown;
     use tokio_rustls::rustls::ServerConfig;
 
     struct CA;
@@ -413,11 +412,11 @@ mod tests {
         InternalProxy {
             ca: Arc::new(CA),
             client: Client::builder(TokioExecutor::new()).build(HttpConnector::new()),
+            server: server::conn::auto::Builder::new(TokioExecutor::new()),
             http_handler: crate::NoopHandler::new(),
             websocket_handler: crate::NoopHandler::new(),
             websocket_connector: None,
             client_addr: "127.0.0.1:8080".parse().unwrap(),
-            shutdown_guard: Shutdown::no_signal().guard(),
         }
     }
 
