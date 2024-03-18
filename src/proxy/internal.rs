@@ -472,8 +472,8 @@ mod tests {
     mod process_connect {
         use super::*;
 
-        #[tokio::test]
-        async fn returns_bad_request_if_missing_authority() {
+        #[test]
+        fn returns_bad_request_if_missing_authority() {
             let proxy = build_proxy();
 
             let req = Request::builder()
@@ -490,8 +490,8 @@ mod tests {
     mod upgrade_websocket {
         use super::*;
 
-        #[tokio::test]
-        async fn returns_bad_request_if_missing_authority() {
+        #[test]
+        fn returns_bad_request_if_missing_authority() {
             let proxy = build_proxy();
 
             let req = Request::builder()
@@ -504,8 +504,8 @@ mod tests {
             assert_eq!(res.status(), StatusCode::BAD_REQUEST)
         }
 
-        #[tokio::test]
-        async fn returns_bad_request_if_missing_headers() {
+        #[test]
+        fn returns_bad_request_if_missing_headers() {
             let proxy = build_proxy();
 
             let req = Request::builder()
