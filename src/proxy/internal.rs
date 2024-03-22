@@ -150,7 +150,7 @@ where
                                 }
                             };
 
-                            let mut upgraded = Rewind::new_buffered(
+                            let mut upgraded = Rewind::new(
                                 upgraded,
                                 Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );

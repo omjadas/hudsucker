@@ -1,7 +1,7 @@
 use crate::Error;
 use futures::{Stream, StreamExt};
 use http_body_util::{combinators::BoxBody, Collected, Empty, Full, StreamBody};
-use hyper::body::{Body as HyperBody, Bytes, Frame, Incoming, SizeHint};
+use hyper::body::{Body as HttpBody, Bytes, Frame, Incoming, SizeHint};
 use std::pin::Pin;
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ impl Body {
     }
 }
 
-impl HyperBody for Body {
+impl HttpBody for Body {
     type Data = Bytes;
     type Error = crate::Error;
 
