@@ -36,7 +36,7 @@ thiserror = "1.0.30"
 time = { version = "0.3.20", optional = true }
 tokio = { version = "1.24.2", features = ["macros", "rt"] }
 tokio-graceful = "0.1.6"
-tokio-rustls = "0.25.0"
+tokio-rustls = "0.26.0"
 tokio-tungstenite = "0.21.0"
 tokio-util = { version = "0.7.1", features = ["io"], optional = true }
 tracing = { version = "0.1.35", features = ["log"] }
