@@ -30,7 +30,6 @@ use std::{
         Arc,
     },
 };
-use tls_listener::TlsListener;
 use tokio::{net::TcpListener, sync::oneshot::Sender};
 use tokio_graceful::Shutdown;
 use tokio_native_tls::native_tls;
@@ -85,10 +84,7 @@ pub async fn start_http_server() -> Result<(SocketAddr, Sender<()>), Box<dyn std
         loop {
             tokio::select! {
                 res = listener.accept() => {
-                    let Ok((tcp, _)) = res else {
-                        continue;
-                    };
-
+                    let (tcp, _) = res.unwrap();
                     let server = server.clone();
 
                     shutdown.spawn_task(async move {
@@ -119,7 +115,6 @@ pub async fn start_https_server(
         .gen_server_config(&"localhost".parse().unwrap())
         .await
         .into();
-    let mut listener = TlsListener::new(acceptor, listener);
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     tokio::spawn(async move {
@@ -130,10 +125,8 @@ pub async fn start_https_server(
         loop {
             tokio::select! {
                 res = listener.accept() => {
-                    let Ok((tcp, _)) = res else {
-                        continue;
-                    };
-
+                    let (tcp, _) = res.unwrap();
+                    let tcp = acceptor.accept(tcp).await.unwrap();
                     let server = server.clone();
 
                     shutdown.spawn_task(async move {
