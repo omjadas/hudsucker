@@ -10,6 +10,10 @@ updates:
     reviewers:
       - omjadas
     groups:
+      rustls:
+        patterns:
+          - "hyper-rustls"
+          - "tokio-rustls"
       tungstenite:
         patterns:
           - "hyper-tungstenite"
