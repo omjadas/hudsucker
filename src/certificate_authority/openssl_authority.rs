@@ -145,7 +145,7 @@ impl CertificateAuthority for OpensslAuthority {
 mod tests {
     use super::*;
 
-    fn init_ca(cache_size: u64) -> OpensslAuthority {
+    fn build_ca(cache_size: u64) -> OpensslAuthority {
         let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
         let ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
         let private_key =
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn unique_serial_numbers() {
-        let ca = init_ca(0);
+        let ca = build_ca(0);
 
         let authority1 = Authority::from_static("example.com");
         let authority2 = Authority::from_static("example2.com");
