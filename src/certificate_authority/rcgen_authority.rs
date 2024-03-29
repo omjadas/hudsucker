@@ -1,15 +1,14 @@
-use crate::{
-    certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS},
-    Error,
-};
+use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS};
 use http::uri::Authority;
 use moka::future::Cache;
 use rand::{thread_rng, Rng};
-use rcgen::{DistinguishedName, DnType, KeyPair, SanType};
+use rcgen::{
+    Certificate, CertificateParams, DistinguishedName, DnType, Ia5String, KeyPair, SanType,
+};
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{
-    pki_types::{CertificateDer, PrivateKeyDer},
+    pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     ServerConfig,
 };
 use tracing::debug;
@@ -24,54 +23,44 @@ use tracing::debug;
 ///
 /// ```rust
 /// use hudsucker::{certificate_authority::RcgenAuthority, rustls};
-/// use rustls_pemfile as pemfile;
+/// use rcgen::{CertificateParams, KeyPair};
 ///
-/// let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
-/// let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
-/// let private_key = pemfile::private_key(&mut private_key_bytes)
-///     .unwrap()
-///     .expect("Failed to parse private key");
-/// let ca_cert = pemfile::certs(&mut ca_cert_bytes)
-///     .next()
-///     .unwrap()
-///     .expect("Failed to parse CA certificate");
+/// let key_pair = include_str!("../../examples/ca/hudsucker.key");
+/// let ca_cert = include_str!("../../examples/ca/hudsucker.cer");
+/// let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
+/// let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
+///     .expect("Failed to parse CA certificate")
+///     .self_signed(&key_pair)
+///     .expect("Failed to sign CA certificate");
 ///
-/// let ca = RcgenAuthority::new(private_key, ca_cert, 1_000).unwrap();
+/// let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000);
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "rcgen-ca")))]
 pub struct RcgenAuthority {
+    key_pair: KeyPair,
+    ca_cert: Certificate,
     private_key: PrivateKeyDer<'static>,
-    ca_cert: CertificateDer<'static>,
     cache: Cache<Authority, Arc<ServerConfig>>,
 }
 
 impl RcgenAuthority {
-    /// Attempts to create a new rcgen authority.
-    ///
-    /// # Errors
-    ///
-    /// This will return an error if the provided key or certificate is invalid, or if the key does
-    /// not match the certificate.
-    pub fn new(
-        private_key: PrivateKeyDer<'static>,
-        ca_cert: CertificateDer<'static>,
-        cache_size: u64,
-    ) -> Result<RcgenAuthority, Error> {
-        let ca = Self {
-            private_key,
+    /// Creates a new rcgen authority.
+    pub fn new(key_pair: KeyPair, ca_cert: Certificate, cache_size: u64) -> RcgenAuthority {
+        let private_key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_pair.serialize_der()));
+
+        Self {
+            key_pair,
             ca_cert,
+            private_key,
             cache: Cache::builder()
                 .max_capacity(cache_size)
                 .time_to_live(std::time::Duration::from_secs(CACHE_TTL))
                 .build(),
-        };
-
-        ca.validate()?;
-        Ok(ca)
+        }
     }
 
     fn gen_cert(&self, authority: &Authority) -> CertificateDer<'static> {
-        let mut params = rcgen::CertificateParams::default();
+        let mut params = CertificateParams::default();
         params.serial_number = Some(thread_rng().gen::<u64>().into());
 
         let not_before = OffsetDateTime::now_utc() - Duration::seconds(NOT_BEFORE_OFFSET);
@@ -82,37 +71,14 @@ impl RcgenAuthority {
         distinguished_name.push(DnType::CommonName, authority.host());
         params.distinguished_name = distinguished_name;
 
+        params.subject_alt_names.push(SanType::DnsName(
+            Ia5String::try_from(authority.host()).expect("Failed to create Ia5String"),
+        ));
+
         params
-            .subject_alt_names
-            .push(SanType::DnsName(authority.host().to_owned()));
-
-        let key_pair =
-            KeyPair::from_der(self.private_key.secret_der()).expect("Failed to parse private key");
-        params.alg = key_pair
-            .compatible_algs()
-            .next()
-            .expect("Failed to find compatible algorithm");
-        params.key_pair = Some(key_pair);
-
-        let key_pair =
-            KeyPair::from_der(self.private_key.secret_der()).expect("Failed to parse private key");
-
-        let ca_cert_params = rcgen::CertificateParams::from_ca_cert_der(&self.ca_cert, key_pair)
-            .expect("Failed to parse CA certificate");
-        let ca_cert = rcgen::Certificate::from_params(ca_cert_params)
-            .expect("Failed to generate CA certificate");
-
-        let cert = rcgen::Certificate::from_params(params).expect("Failed to generate certificate");
-        CertificateDer::from(
-            cert.serialize_der_with_signer(&ca_cert)
-                .expect("Failed to serialize certificate"),
-        )
-    }
-
-    fn validate(&self) -> Result<(), rcgen::Error> {
-        let key_pair = rcgen::KeyPair::from_der(self.private_key.secret_der())?;
-        rcgen::CertificateParams::from_ca_cert_der(&self.ca_cert, key_pair)?;
-        Ok(())
+            .signed_by(&self.key_pair, &self.ca_cert, &self.key_pair)
+            .expect("Failed to sign certificate")
+            .into()
     }
 }
 
@@ -150,45 +116,22 @@ impl CertificateAuthority for RcgenAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustls_pemfile as pemfile;
-    use tokio_rustls::rustls::pki_types::PrivatePkcs1KeyDer;
 
-    fn init_ca(cache_size: u64) -> RcgenAuthority {
-        let mut private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
-        let mut ca_cert_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.cer");
-        let private_key = pemfile::private_key(&mut private_key_bytes)
-            .unwrap()
-            .expect("Failed to parse private key");
-        let ca_cert = pemfile::certs(&mut ca_cert_bytes)
-            .next()
-            .unwrap()
-            .expect("Failed to parse CA certificate");
+    fn build_ca(cache_size: u64) -> RcgenAuthority {
+        let key_pair = include_str!("../../examples/ca/hudsucker.key");
+        let ca_cert = include_str!("../../examples/ca/hudsucker.cer");
+        let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
+        let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
+            .expect("Failed to parse CA certificate")
+            .self_signed(&key_pair)
+            .expect("Failed to sign CA certificate");
 
-        RcgenAuthority::new(private_key, ca_cert, cache_size).unwrap()
-    }
-
-    #[test]
-    fn error_for_invalid_key() {
-        let ca = init_ca(0);
-        let private_key =
-            PrivateKeyDer::from(PrivatePkcs1KeyDer::from(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
-
-        let result = RcgenAuthority::new(private_key, ca.ca_cert, 0);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn error_for_invalid_ca_cert() {
-        let ca = init_ca(0);
-        let ca_cert = CertificateDer::from(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-
-        let result = RcgenAuthority::new(ca.private_key, ca_cert, 0);
-        assert!(result.is_err());
+        RcgenAuthority::new(key_pair, ca_cert, cache_size)
     }
 
     #[test]
     fn unique_serial_numbers() {
-        let ca = init_ca(0);
+        let ca = build_ca(0);
 
         let authority1 = Authority::from_static("example.com");
         let authority2 = Authority::from_static("example2.com");

@@ -1,5 +1,8 @@
-use hudsucker::{certificate_authority::RcgenAuthority, *};
-use rustls_pemfile as pemfile;
+use hudsucker::{
+    certificate_authority::RcgenAuthority,
+    rcgen::{CertificateParams, KeyPair},
+    *,
+};
 use std::net::SocketAddr;
 use tracing::*;
 
@@ -13,18 +16,15 @@ async fn shutdown_signal() {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let mut private_key_bytes: &[u8] = include_bytes!("ca/hudsucker.key");
-    let mut ca_cert_bytes: &[u8] = include_bytes!("ca/hudsucker.cer");
-    let private_key = pemfile::private_key(&mut private_key_bytes)
-        .unwrap()
-        .expect("Failed to parse private key");
-    let ca_cert = pemfile::certs(&mut ca_cert_bytes)
-        .next()
-        .unwrap()
-        .expect("Failed to parse CA certificate");
+    let key_pair = include_str!("ca/hudsucker.key");
+    let ca_cert = include_str!("ca/hudsucker.cer");
+    let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
+    let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
+        .expect("Failed to parse CA certificate")
+        .self_signed(&key_pair)
+        .expect("Failed to sign CA certificate");
 
-    let ca = RcgenAuthority::new(private_key, ca_cert, 1_000)
-        .expect("Failed to create Certificate Authority");
+    let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000);
 
     let proxy = Proxy::builder()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))

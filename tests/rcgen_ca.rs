@@ -1,22 +1,21 @@
-use hudsucker::certificate_authority::RcgenAuthority;
-use rustls_pemfile as pemfile;
+use hudsucker::{
+    certificate_authority::RcgenAuthority,
+    rcgen::{CertificateParams, KeyPair},
+};
 use std::sync::atomic::Ordering;
 
 mod common;
 
 fn build_ca() -> RcgenAuthority {
-    let mut private_key_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.key");
-    let mut ca_cert_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
-    let private_key = pemfile::private_key(&mut private_key_bytes)
-        .unwrap()
-        .expect("Failed to parse private key");
-    let ca_cert = pemfile::certs(&mut ca_cert_bytes)
-        .next()
-        .unwrap()
-        .expect("Failed to parse CA certificate");
+    let key_pair = include_str!("../examples/ca/hudsucker.key");
+    let ca_cert = include_str!("../examples/ca/hudsucker.cer");
+    let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
+    let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
+        .expect("Failed to parse CA certificate")
+        .self_signed(&key_pair)
+        .expect("Failed to sign CA certificate");
 
-    RcgenAuthority::new(private_key, ca_cert, 1_000)
-        .expect("Failed to create Certificate Authority")
+    RcgenAuthority::new(key_pair, ca_cert, 1000)
 }
 
 #[tokio::test]

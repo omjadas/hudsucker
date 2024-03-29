@@ -3,8 +3,8 @@ use http::uri::Authority;
 use hudsucker::{
     certificate_authority::{CertificateAuthority, OpensslAuthority, RcgenAuthority},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
+    rcgen::{CertificateParams, KeyPair},
 };
-use rustls_pemfile as pemfile;
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
@@ -13,26 +13,22 @@ fn runtime() -> tokio::runtime::Runtime {
 }
 
 fn build_rcgen_ca(cache_size: u64) -> RcgenAuthority {
-    let mut private_key_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.key");
-    let mut ca_cert_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
-    let private_key = pemfile::private_key(&mut private_key_bytes)
-        .unwrap()
-        .expect("Failed to parse private key");
-    let ca_cert = pemfile::certs(&mut ca_cert_bytes)
-        .next()
-        .unwrap()
-        .expect("Failed to parse CA certificate");
+    let key_pair = include_str!("../examples/ca/hudsucker.key");
+    let ca_cert = include_str!("../examples/ca/hudsucker.cer");
+    let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
+    let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
+        .expect("Failed to parse CA certificate")
+        .self_signed(&key_pair)
+        .expect("Failed to sign CA certificate");
 
-    RcgenAuthority::new(private_key, ca_cert, cache_size)
-        .expect("Failed to create Certificate Authority")
+    RcgenAuthority::new(key_pair, ca_cert, cache_size)
 }
 
 fn build_openssl_ca(cache_size: u64) -> OpensslAuthority {
-    let private_key_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.key");
-    let ca_cert_bytes: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
-    let private_key =
-        PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
-    let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
+    let private_key: &[u8] = include_bytes!("../examples/ca/hudsucker.key");
+    let ca_cert: &[u8] = include_bytes!("../examples/ca/hudsucker.cer");
+    let private_key = PKey::private_key_from_pem(private_key).expect("Failed to parse private key");
+    let ca_cert = X509::from_pem(ca_cert).expect("Failed to parse CA certificate");
 
     OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), cache_size)
 }

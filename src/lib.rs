@@ -40,6 +40,8 @@ pub use hyper;
 pub use hyper_util;
 #[cfg(feature = "openssl-ca")]
 pub use openssl;
+#[cfg(feature = "rcgen-ca")]
+pub use rcgen;
 pub use tokio_rustls::rustls;
 pub use tokio_tungstenite;
 
