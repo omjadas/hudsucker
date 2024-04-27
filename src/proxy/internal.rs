@@ -287,13 +287,13 @@ where
     #[instrument(skip_all)]
     async fn handle_websocket(
         self,
-        server_socket: WebSocketStream<TokioIo<Upgraded>>,
+        client_socket: WebSocketStream<TokioIo<Upgraded>>,
         req: Request<()>,
     ) -> Result<(), tungstenite::Error> {
         let uri = req.uri().clone();
 
         #[cfg(any(feature = "rustls-client", feature = "native-tls-client"))]
-        let (client_socket, _) = tokio_tungstenite::connect_async_tls_with_config(
+        let (server_socket, _) = tokio_tungstenite::connect_async_tls_with_config(
             req,
             None,
             false,
@@ -302,7 +302,7 @@ where
         .await?;
 
         #[cfg(not(any(feature = "rustls-client", feature = "native-tls-client")))]
-        let (client_socket, _) = tokio_tungstenite::connect_async(req).await?;
+        let (server_socket, _) = tokio_tungstenite::connect_async(req).await?;
 
         let (server_sink, server_stream) = server_socket.split();
         let (client_sink, client_stream) = client_socket.split();
