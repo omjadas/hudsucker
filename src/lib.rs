@@ -33,8 +33,6 @@ use std::{future::Future, net::SocketAddr};
 use tokio_tungstenite::tungstenite::{self, Message};
 use tracing::error;
 
-pub(crate) use rewind::Rewind;
-
 pub use futures;
 pub use hyper;
 pub use hyper_util;

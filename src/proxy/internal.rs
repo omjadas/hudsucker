@@ -1,6 +1,6 @@
 use crate::{
-    body::Body, certificate_authority::CertificateAuthority, HttpContext, HttpHandler,
-    RequestOrResponse, Rewind, WebSocketContext, WebSocketHandler,
+    body::Body, certificate_authority::CertificateAuthority, rewind::Rewind, HttpContext,
+    HttpHandler, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
