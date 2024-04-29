@@ -27,7 +27,6 @@ mod rewind;
 pub mod certificate_authority;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use http_body_util::Empty;
 use hyper::{Request, Response, StatusCode, Uri};
 use std::{future::Future, net::SocketAddr};
 use tokio_tungstenite::tungstenite::{self, Message};
@@ -133,7 +132,7 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
             error!("Failed to forward request: {}", err);
             Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
-                .body(Empty::new().into())
+                .body(Body::empty())
                 .expect("Failed to build response")
         }
     }

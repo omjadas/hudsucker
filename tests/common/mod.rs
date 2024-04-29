@@ -1,6 +1,5 @@
 use async_compression::tokio::bufread::GzipEncoder;
 use futures::{SinkExt, StreamExt};
-use http_body_util::Empty;
 use hudsucker::{
     certificate_authority::CertificateAuthority,
     decode_request, decode_response,
@@ -67,7 +66,7 @@ async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallibl
             ))))
             .unwrap()),
         (&Method::POST, "/echo") => Ok(Response::new(req.into_body().into())),
-        _ => Ok(Response::new(Body::from(Empty::new()))),
+        _ => Ok(Response::new(Body::empty())),
     }
 }
 

@@ -4,7 +4,6 @@ use crate::{
 };
 use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
-use http_body_util::Empty;
 use hyper::{
     body::{Bytes, Incoming},
     header::Entry,
@@ -29,7 +28,7 @@ use tracing::{error, info_span, instrument, warn, Instrument, Span};
 fn bad_request() -> Response<Body> {
     Response::builder()
         .status(StatusCode::BAD_REQUEST)
-        .body(Empty::new().into())
+        .body(Body::empty())
         .expect("Failed to build response")
 }
 
@@ -230,7 +229,7 @@ where
                 };
 
                 spawn_with_trace(fut, span);
-                Response::new(Empty::new().into())
+                Response::new(Body::empty())
             }
             None => bad_request(),
         }
@@ -478,7 +477,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("/foo/bar?baz")
-                .body(Empty::new().into())
+                .body(Body::empty())
                 .unwrap();
 
             let res = proxy.process_connect(req);
@@ -496,7 +495,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("/foo/bar?baz")
-                .body(Empty::new().into())
+                .body(Body::empty())
                 .unwrap();
 
             let res = proxy.upgrade_websocket(req);
@@ -510,7 +509,7 @@ mod tests {
 
             let req = Request::builder()
                 .uri("http://example.com/foo/bar?baz")
-                .body(Empty::new().into())
+                .body(Body::empty())
                 .unwrap();
 
             let res = proxy.upgrade_websocket(req);

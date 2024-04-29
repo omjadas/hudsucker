@@ -2,7 +2,7 @@ use crate::Error;
 use futures::{Stream, TryStream, TryStreamExt};
 use http_body_util::{combinators::BoxBody, Collected, Empty, Full, StreamBody};
 use hyper::body::{Body as HttpBody, Bytes, Frame, Incoming, SizeHint};
-use std::pin::Pin;
+use std::{pin::Pin, task::Poll};
 
 #[derive(Debug)]
 enum Internal {
@@ -21,6 +21,10 @@ pub struct Body {
 }
 
 impl Body {
+    pub fn empty() -> Self {
+        Self::from(Empty::new())
+    }
+
     pub fn from_stream<S>(stream: S) -> Self
     where
         S: TryStream + Send + Sync + 'static,
@@ -43,9 +47,9 @@ impl HttpBody for Body {
     type Error = Error;
 
     fn poll_frame(
-        mut self: std::pin::Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut self.inner {
             Internal::BoxBody(body) => Pin::new(body).poll_frame(cx),
             Internal::Collected(body) => Pin::new(body).poll_frame(cx).map_err(|e| match e {}),

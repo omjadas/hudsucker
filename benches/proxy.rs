@@ -1,5 +1,4 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use http_body_util::Empty;
 use hudsucker::{
     certificate_authority::{CertificateAuthority, RcgenAuthority},
     hyper::{body::Incoming, service::service_fn, Method, Request, Response},
@@ -40,7 +39,7 @@ fn build_ca() -> RcgenAuthority {
 async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/hello") => Ok(Response::new(Body::from("hello, world"))),
-        _ => Ok(Response::new(Body::from(Empty::new()))),
+        _ => Ok(Response::new(Body::empty())),
     }
 }
 
