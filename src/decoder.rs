@@ -209,7 +209,6 @@ pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper::body::Body as HyperBody;
 
     mod extract_encodings {
         use super::*;
@@ -268,9 +267,9 @@ mod tests {
         }
     }
 
-    async fn to_bytes<H: HyperBody>(body: H) -> Bytes
+    async fn to_bytes<H: HttpBody>(body: H) -> Bytes
     where
-        <H as hyper::body::Body>::Error: std::fmt::Debug,
+        H::Error: std::fmt::Debug,
     {
         use http_body_util::BodyExt;
         body.collect().await.unwrap().to_bytes()
@@ -279,7 +278,6 @@ mod tests {
     mod decode_body {
         use super::*;
         use async_compression::tokio::bufread::{BrotliEncoder, GzipEncoder};
-        use http_body_util::Empty;
 
         #[tokio::test]
         async fn no_encodings() {
@@ -330,7 +328,7 @@ mod tests {
 
         #[test]
         fn invalid_encoding() {
-            let body = Body::from(Empty::<Bytes>::new());
+            let body = Body::empty();
 
             assert!(decode_body(vec![&b"invalid"[..]], body).is_err());
         }

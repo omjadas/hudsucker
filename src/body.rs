@@ -1,7 +1,10 @@
 use crate::Error;
 use futures::{Stream, TryStream, TryStreamExt};
 use http_body_util::{combinators::BoxBody, Collected, Empty, Full, StreamBody};
-use hyper::body::{Body as HttpBody, Bytes, Frame, Incoming, SizeHint};
+use hyper::{
+    body::{Body as HttpBody, Bytes, Frame, Incoming, SizeHint},
+    Request, Response,
+};
 use std::{pin::Pin, task::Poll};
 
 #[derive(Debug)]
@@ -155,5 +158,23 @@ impl From<&'static [u8]> for Body {
         Self {
             inner: Internal::Full(Full::new(Bytes::from_static(value))),
         }
+    }
+}
+
+impl<T> From<Request<T>> for Body
+where
+    T: Into<Body>,
+{
+    fn from(value: Request<T>) -> Self {
+        value.into_body().into()
+    }
+}
+
+impl<T> From<Response<T>> for Body
+where
+    T: Into<Body>,
+{
+    fn from(value: Response<T>) -> Self {
+        value.into_body().into()
     }
 }

@@ -132,7 +132,7 @@ fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>, Body>
         .unwrap()
         .into();
 
-    let https: hyper_tls::HttpsConnector<HttpConnector> = (http, tls).into();
+    let https = (http, tls).into();
 
     Client::builder(TokioExecutor::new()).build(https)
 }

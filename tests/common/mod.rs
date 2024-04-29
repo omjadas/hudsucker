@@ -65,7 +65,7 @@ async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallibl
                 HELLO_WORLD.as_bytes(),
             ))))
             .unwrap()),
-        (&Method::POST, "/echo") => Ok(Response::new(req.into_body().into())),
+        (&Method::POST, "/echo") => Ok(Response::new(req.into())),
         _ => Ok(Response::new(Body::empty())),
     }
 }
@@ -212,7 +212,7 @@ pub fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>, B
     http.enforce_http(false);
 
     let tls = native_tls_connector().into();
-    let https: hyper_tls::HttpsConnector<HttpConnector> = (http, tls).into();
+    let https = (http, tls).into();
 
     Client::builder(TokioExecutor::new()).build(https)
 }

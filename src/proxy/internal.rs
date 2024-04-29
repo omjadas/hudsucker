@@ -277,7 +277,7 @@ where
                 };
 
                 spawn_with_trace(fut, span);
-                res.map(Into::into)
+                res.map(Body::from)
             }
             Err(_) => bad_request(),
         }
