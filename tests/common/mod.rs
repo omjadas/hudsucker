@@ -62,7 +62,7 @@ async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallibl
         (&Method::GET, "/hello/gzip") => Ok(Response::builder()
             .header(CONTENT_ENCODING, "gzip")
             .status(StatusCode::OK)
-            .body(Body::wrap_stream(ReaderStream::new(GzipEncoder::new(
+            .body(Body::from_stream(ReaderStream::new(GzipEncoder::new(
                 HELLO_WORLD.as_bytes(),
             ))))
             .unwrap()),

@@ -70,7 +70,7 @@ impl From<Decoder<Body>> for Body {
     fn from(decoder: Decoder<Body>) -> Body {
         match decoder {
             Decoder::Body(body) => body,
-            Decoder::Decoder(decoder) => Body::wrap_stream(ReaderStream::new(decoder)),
+            Decoder::Decoder(decoder) => Body::from_stream(ReaderStream::new(decoder)),
         }
     }
 }
@@ -307,7 +307,7 @@ mod tests {
         async fn single_encoding() {
             let content = b"hello, world";
             let encoder = GzipEncoder::new(&content[..]);
-            let body = Body::wrap_stream(ReaderStream::new(encoder));
+            let body = Body::from_stream(ReaderStream::new(encoder));
 
             assert_eq!(
                 &to_bytes(decode_body(vec![&b"gzip"[..]], body).unwrap()).await[..],
@@ -320,7 +320,7 @@ mod tests {
             let content = b"hello, world";
             let encoder = GzipEncoder::new(&content[..]);
             let encoder = BrotliEncoder::new(BufReader::new(encoder));
-            let body = Body::wrap_stream(ReaderStream::new(encoder));
+            let body = Body::from_stream(ReaderStream::new(encoder));
 
             assert_eq!(
                 &to_bytes(decode_body(vec![&b"br"[..], &b"gzip"[..]], body).unwrap()).await[..],
@@ -347,7 +347,7 @@ mod tests {
             let req = Request::builder()
                 .header(CONTENT_LENGTH, 123)
                 .header(CONTENT_ENCODING, "gzip")
-                .body(Body::wrap_stream(ReaderStream::new(encoder)))
+                .body(Body::from_stream(ReaderStream::new(encoder)))
                 .unwrap();
 
             let req = decode_request(req).unwrap();
@@ -369,7 +369,7 @@ mod tests {
             let res = Response::builder()
                 .header(CONTENT_LENGTH, 123)
                 .header(CONTENT_ENCODING, "gzip")
-                .body(Body::wrap_stream(ReaderStream::new(encoder)))
+                .body(Body::from_stream(ReaderStream::new(encoder)))
                 .unwrap();
 
             let res = decode_response(res).unwrap();

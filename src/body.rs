@@ -1,12 +1,12 @@
 use crate::Error;
-use futures::{Stream, StreamExt};
+use futures::{Stream, TryStream, TryStreamExt};
 use http_body_util::{combinators::BoxBody, Collected, Empty, Full, StreamBody};
 use hyper::body::{Body as HttpBody, Bytes, Frame, Incoming, SizeHint};
 use std::pin::Pin;
 
 #[derive(Debug)]
 enum Internal {
-    BoxBody(BoxBody<Bytes, crate::Error>),
+    BoxBody(BoxBody<Bytes, Error>),
     Collected(Collected<Bytes>),
     Empty(Empty<Bytes>),
     Full(Full<Bytes>),
@@ -21,15 +21,18 @@ pub struct Body {
 }
 
 impl Body {
-    pub fn wrap_stream<S, O, E>(stream: S) -> Self
+    pub fn from_stream<S>(stream: S) -> Self
     where
-        S: Stream<Item = Result<O, E>> + Send + Sync + 'static,
-        O: Into<Bytes>,
-        E: Into<Error>,
+        S: TryStream + Send + Sync + 'static,
+        S::Ok: Into<Bytes>,
+        S::Error: Into<Error>,
     {
         Self {
             inner: Internal::BoxBody(BoxBody::new(StreamBody::new(
-                stream.map(|res| res.map(Into::into).map(Frame::data).map_err(Into::into)),
+                stream
+                    .map_ok(Into::into)
+                    .map_ok(Frame::data)
+                    .map_err(Into::into),
             ))),
         }
     }
@@ -37,7 +40,7 @@ impl Body {
 
 impl HttpBody for Body {
     type Data = Bytes;
-    type Error = crate::Error;
+    type Error = Error;
 
     fn poll_frame(
         mut self: std::pin::Pin<&mut Self>,
@@ -76,8 +79,8 @@ impl HttpBody for Body {
     }
 }
 
-impl From<BoxBody<Bytes, crate::Error>> for Body {
-    fn from(value: BoxBody<Bytes, crate::Error>) -> Self {
+impl From<BoxBody<Bytes, Error>> for Body {
+    fn from(value: BoxBody<Bytes, Error>) -> Self {
         Self {
             inner: Internal::BoxBody(value),
         }
