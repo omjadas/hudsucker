@@ -14,6 +14,7 @@ enum Internal {
     String(String),
 }
 
+/// Concrete implementation of [`Body`](HttpBody).
 #[derive(Debug)]
 pub struct Body {
     inner: Internal,

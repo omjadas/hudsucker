@@ -3,7 +3,8 @@ mod internal;
 pub mod builder;
 
 use crate::{
-    certificate_authority::CertificateAuthority, Body, Error, HttpHandler, WebSocketHandler,
+    builder::ProxyBuilder, certificate_authority::CertificateAuthority, Body, Error, HttpHandler,
+    WebSocketHandler,
 };
 use builder::{AddrOrListener, WantsAddr};
 use hyper::service::service_fn;
@@ -18,8 +19,6 @@ use tokio::net::TcpListener;
 use tokio_graceful::Shutdown;
 use tokio_tungstenite::Connector;
 use tracing::error;
-
-pub use builder::ProxyBuilder;
 
 /// A proxy server. This must be constructed with a [`ProxyBuilder`].
 ///
