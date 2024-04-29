@@ -45,7 +45,7 @@ pub struct RcgenAuthority {
 
 impl RcgenAuthority {
     /// Creates a new rcgen authority.
-    pub fn new(key_pair: KeyPair, ca_cert: Certificate, cache_size: u64) -> RcgenAuthority {
+    pub fn new(key_pair: KeyPair, ca_cert: Certificate, cache_size: u64) -> Self {
         let private_key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_pair.serialize_der()));
 
         Self {

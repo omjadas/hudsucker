@@ -3,8 +3,8 @@ use http_body_util::Empty;
 use hudsucker::{
     certificate_authority::{CertificateAuthority, RcgenAuthority},
     hyper::{body::Incoming, service::service_fn, Method, Request, Response},
-    hyper_util::client::legacy::{connect::HttpConnector, Client},
     hyper_util::{
+        client::legacy::{connect::HttpConnector, Client},
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
