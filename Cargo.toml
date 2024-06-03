@@ -26,7 +26,7 @@ http-body-util = "0.1.0"
 hyper = "1.1.0"
 hyper-rustls = { version = "0.26.0", default-features = false, features = ["http1", "logging", "ring", "tls12", "webpki-tokio"], optional = true }
 hyper-tls = { version = "0.6.0", optional = true }
-hyper-tungstenite = "0.13.0"
+hyper-tungstenite = "0.14.0"
 hyper-util = { version="0.1.3", features = ["client-legacy", "server", "http1"] }
 moka = { version = "0.12.0", features = ["future"], optional = true }
 openssl = { version = "0.10.46", optional = true }
@@ -37,7 +37,7 @@ time = { version = "0.3.20", optional = true }
 tokio = { version = "1.24.2", features = ["macros", "rt"] }
 tokio-graceful = "0.1.6"
 tokio-rustls = "0.25.0"
-tokio-tungstenite = "0.21.0"
+tokio-tungstenite = "0.23.0"
 tokio-util = { version = "0.7.1", features = ["io"], optional = true }
 tracing = { version = "0.1.35", features = ["log"] }
 
