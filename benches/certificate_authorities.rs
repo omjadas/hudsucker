@@ -4,6 +4,7 @@ use hudsucker::{
     certificate_authority::{CertificateAuthority, OpensslAuthority, RcgenAuthority},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
     rcgen::{CertificateParams, KeyPair},
+    rustls::crypto::aws_lc_rs,
 };
 
 fn runtime() -> tokio::runtime::Runtime {
@@ -21,7 +22,7 @@ fn build_rcgen_ca(cache_size: u64) -> RcgenAuthority {
         .self_signed(&key_pair)
         .expect("Failed to sign CA certificate");
 
-    RcgenAuthority::new(key_pair, ca_cert, cache_size)
+    RcgenAuthority::new(key_pair, ca_cert, cache_size, aws_lc_rs::default_provider())
 }
 
 fn build_openssl_ca(cache_size: u64) -> OpensslAuthority {
@@ -30,7 +31,13 @@ fn build_openssl_ca(cache_size: u64) -> OpensslAuthority {
     let private_key = PKey::private_key_from_pem(private_key).expect("Failed to parse private key");
     let ca_cert = X509::from_pem(ca_cert).expect("Failed to parse CA certificate");
 
-    OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), cache_size)
+    OpensslAuthority::new(
+        private_key,
+        ca_cert,
+        MessageDigest::sha256(),
+        cache_size,
+        aws_lc_rs::default_provider(),
+    )
 }
 
 fn compare_cas(c: &mut Criterion) {

@@ -2,6 +2,7 @@ use hudsucker::{
     certificate_authority::RcgenAuthority,
     hyper::{Request, Response},
     rcgen::{CertificateParams, KeyPair},
+    rustls::crypto::aws_lc_rs,
     tokio_tungstenite::tungstenite::Message,
     *,
 };
@@ -52,16 +53,17 @@ async fn main() {
         .self_signed(&key_pair)
         .expect("Failed to sign CA certificate");
 
-    let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000);
+    let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000, aws_lc_rs::default_provider());
 
     let proxy = Proxy::builder()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
-        .with_rustls_client()
         .with_ca(ca)
+        .with_rustls_client(aws_lc_rs::default_provider())
         .with_http_handler(LogHandler)
         .with_websocket_handler(LogHandler)
         .with_graceful_shutdown(shutdown_signal())
-        .build();
+        .build()
+        .expect("Failed to create proxy");
 
     if let Err(e) = proxy.start().await {
         error!("{}", e);

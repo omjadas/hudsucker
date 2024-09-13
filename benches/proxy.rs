@@ -8,6 +8,7 @@ use hudsucker::{
         server::conn::auto,
     },
     rcgen::{CertificateParams, KeyPair},
+    rustls::crypto::aws_lc_rs,
     Body, Proxy,
 };
 use reqwest::Certificate;
@@ -33,7 +34,7 @@ fn build_ca() -> RcgenAuthority {
         .self_signed(&key_pair)
         .expect("Failed to sign CA certificate");
 
-    RcgenAuthority::new(key_pair, ca_cert, 1000)
+    RcgenAuthority::new(key_pair, ca_cert, 1000, aws_lc_rs::default_provider())
 }
 
 async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
@@ -145,12 +146,13 @@ async fn start_proxy(
     let (tx, rx) = tokio::sync::oneshot::channel();
     let proxy = Proxy::builder()
         .with_listener(listener)
-        .with_client(native_tls_client())
         .with_ca(ca)
+        .with_client(native_tls_client())
         .with_graceful_shutdown(async {
             rx.await.unwrap_or_default();
         })
-        .build();
+        .build()
+        .expect("Failed to create proxy");
 
     tokio::spawn(proxy.start());
 

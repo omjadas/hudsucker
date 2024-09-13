@@ -1,6 +1,7 @@
 use hudsucker::{
     certificate_authority::OpensslAuthority,
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
+    rustls::crypto::aws_lc_rs,
 };
 use std::sync::atomic::Ordering;
 
@@ -13,7 +14,13 @@ fn build_ca() -> OpensslAuthority {
         PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
     let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
 
-    OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000)
+    OpensslAuthority::new(
+        private_key,
+        ca_cert,
+        MessageDigest::sha256(),
+        1_000,
+        aws_lc_rs::default_provider(),
+    )
 }
 
 #[tokio::test]

@@ -256,15 +256,16 @@ where
 
     let proxy = Proxy::builder()
         .with_listener(listener)
-        .with_client(client)
         .with_ca(ca)
+        .with_client(client)
         .with_http_handler(handler.clone())
         .with_websocket_handler(handler.clone())
         .with_websocket_connector(websocket_connector)
         .with_graceful_shutdown(async {
             rx.await.unwrap_or_default();
         })
-        .build();
+        .build()
+        .expect("Failed to create proxy");
 
     tokio::spawn(proxy.start());
     Ok((addr, handler, tx))
@@ -279,12 +280,13 @@ pub async fn start_noop_proxy(
 
     let proxy = Proxy::builder()
         .with_listener(listener)
-        .with_client(native_tls_client())
         .with_ca(ca)
+        .with_client(native_tls_client())
         .with_graceful_shutdown(async {
             rx.await.unwrap_or_default();
         })
-        .build();
+        .build()
+        .expect("Failed to create proxy");
 
     tokio::spawn(proxy.start());
     Ok((addr, tx))

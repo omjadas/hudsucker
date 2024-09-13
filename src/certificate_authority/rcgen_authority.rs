@@ -8,6 +8,7 @@ use rcgen::{
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{
+    crypto::CryptoProvider,
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     ServerConfig,
 };
@@ -22,7 +23,7 @@ use tracing::debug;
 /// # Examples
 ///
 /// ```rust
-/// use hudsucker::{certificate_authority::RcgenAuthority, rustls};
+/// use hudsucker::{certificate_authority::RcgenAuthority, rustls::crypto::aws_lc_rs};
 /// use rcgen::{CertificateParams, KeyPair};
 ///
 /// let key_pair = include_str!("../../examples/ca/hudsucker.key");
@@ -33,7 +34,7 @@ use tracing::debug;
 ///     .self_signed(&key_pair)
 ///     .expect("Failed to sign CA certificate");
 ///
-/// let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000);
+/// let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000, aws_lc_rs::default_provider());
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "rcgen-ca")))]
 pub struct RcgenAuthority {
@@ -41,11 +42,17 @@ pub struct RcgenAuthority {
     ca_cert: Certificate,
     private_key: PrivateKeyDer<'static>,
     cache: Cache<Authority, Arc<ServerConfig>>,
+    provider: Arc<CryptoProvider>,
 }
 
 impl RcgenAuthority {
     /// Creates a new rcgen authority.
-    pub fn new(key_pair: KeyPair, ca_cert: Certificate, cache_size: u64) -> Self {
+    pub fn new(
+        key_pair: KeyPair,
+        ca_cert: Certificate,
+        cache_size: u64,
+        provider: CryptoProvider,
+    ) -> Self {
         let private_key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_pair.serialize_der()));
 
         Self {
@@ -56,6 +63,7 @@ impl RcgenAuthority {
                 .max_capacity(cache_size)
                 .time_to_live(std::time::Duration::from_secs(CACHE_TTL))
                 .build(),
+            provider: Arc::new(provider),
         }
     }
 
@@ -92,7 +100,9 @@ impl CertificateAuthority for RcgenAuthority {
 
         let certs = vec![self.gen_cert(authority)];
 
-        let mut server_cfg = ServerConfig::builder()
+        let mut server_cfg = ServerConfig::builder_with_provider(Arc::clone(&self.provider))
+            .with_safe_default_protocol_versions()
+            .expect("Failed to specify protocol versions")
             .with_no_client_auth()
             .with_single_cert(certs, self.private_key.clone_key())
             .expect("Failed to build ServerConfig");
@@ -116,6 +126,7 @@ impl CertificateAuthority for RcgenAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_rustls::rustls::crypto::aws_lc_rs;
 
     fn build_ca(cache_size: u64) -> RcgenAuthority {
         let key_pair = include_str!("../../examples/ca/hudsucker.key");
@@ -126,7 +137,7 @@ mod tests {
             .self_signed(&key_pair)
             .expect("Failed to sign CA certificate");
 
-        RcgenAuthority::new(key_pair, ca_cert, cache_size)
+        RcgenAuthority::new(key_pair, ca_cert, cache_size, aws_lc_rs::default_provider())
     }
 
     #[test]

@@ -15,6 +15,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio_rustls::rustls::{
+    crypto::CryptoProvider,
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
     ServerConfig,
 };
@@ -32,6 +33,7 @@ use tracing::debug;
 /// use hudsucker::{
 ///     certificate_authority::OpensslAuthority,
 ///     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
+///     rustls::crypto::aws_lc_rs,
 /// };
 ///
 /// let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
@@ -39,7 +41,13 @@ use tracing::debug;
 /// let private_key = PKey::private_key_from_pem(private_key_bytes).unwrap();
 /// let ca_cert = X509::from_pem(ca_cert_bytes).unwrap();
 ///
-/// let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
+/// let ca = OpensslAuthority::new(
+///     private_key,
+///     ca_cert,
+///     MessageDigest::sha256(),
+///     1_000,
+///     aws_lc_rs::default_provider(),
+/// );
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "openssl-ca")))]
 pub struct OpensslAuthority {
@@ -48,11 +56,18 @@ pub struct OpensslAuthority {
     ca_cert: X509,
     hash: MessageDigest,
     cache: Cache<Authority, Arc<ServerConfig>>,
+    provider: Arc<CryptoProvider>,
 }
 
 impl OpensslAuthority {
     /// Creates a new openssl authority.
-    pub fn new(pkey: PKey<Private>, ca_cert: X509, hash: MessageDigest, cache_size: u64) -> Self {
+    pub fn new(
+        pkey: PKey<Private>,
+        ca_cert: X509,
+        hash: MessageDigest,
+        cache_size: u64,
+        provider: CryptoProvider,
+    ) -> Self {
         let private_key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(
             pkey.private_key_to_pkcs8()
                 .expect("Failed to encode private key"),
@@ -67,6 +82,7 @@ impl OpensslAuthority {
                 .max_capacity(cache_size)
                 .time_to_live(Duration::from_secs(CACHE_TTL))
                 .build(),
+            provider: Arc::new(provider),
         }
     }
 
@@ -120,7 +136,9 @@ impl CertificateAuthority for OpensslAuthority {
             .gen_cert(authority)
             .unwrap_or_else(|_| panic!("Failed to generate certificate for {}", authority))];
 
-        let mut server_cfg = ServerConfig::builder()
+        let mut server_cfg = ServerConfig::builder_with_provider(Arc::clone(&self.provider))
+            .with_safe_default_protocol_versions()
+            .expect("Failed to specify protocol versions")
             .with_no_client_auth()
             .with_single_cert(certs, self.private_key.clone_key())
             .expect("Failed to build ServerConfig");
@@ -144,6 +162,7 @@ impl CertificateAuthority for OpensslAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_rustls::rustls::crypto::aws_lc_rs;
 
     fn build_ca(cache_size: u64) -> OpensslAuthority {
         let private_key_bytes: &[u8] = include_bytes!("../../examples/ca/hudsucker.key");
@@ -152,7 +171,13 @@ mod tests {
             PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
         let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
 
-        OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), cache_size)
+        OpensslAuthority::new(
+            private_key,
+            ca_cert,
+            MessageDigest::sha256(),
+            cache_size,
+            aws_lc_rs::default_provider(),
+        )
     }
 
     #[test]

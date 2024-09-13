@@ -2,6 +2,7 @@ use hudsucker::{
     certificate_authority::OpensslAuthority,
     hyper::{Request, Response},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
+    rustls::crypto::aws_lc_rs,
     tokio_tungstenite::tungstenite::Message,
     *,
 };
@@ -50,15 +51,22 @@ async fn main() {
         PKey::private_key_from_pem(private_key_bytes).expect("Failed to parse private key");
     let ca_cert = X509::from_pem(ca_cert_bytes).expect("Failed to parse CA certificate");
 
-    let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
+    let ca = OpensslAuthority::new(
+        private_key,
+        ca_cert,
+        MessageDigest::sha256(),
+        1_000,
+        aws_lc_rs::default_provider(),
+    );
 
     let proxy = Proxy::builder()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
-        .with_rustls_client()
         .with_ca(ca)
+        .with_rustls_client(aws_lc_rs::default_provider())
         .with_http_handler(LogHandler)
         .with_graceful_shutdown(shutdown_signal())
-        .build();
+        .build()
+        .expect("Failed to create proxy");
 
     if let Err(e) = proxy.start().await {
         error!("{}", e);

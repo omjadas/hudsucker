@@ -29,6 +29,7 @@ use tracing::error;
 /// # use hudsucker::{
 /// #     certificate_authority::RcgenAuthority,
 /// #     rcgen::{CertificateParams, KeyPair},
+/// #     rustls::crypto::aws_lc_rs,
 /// # };
 /// #
 /// # #[cfg(all(feature = "rcgen-ca", feature = "rustls-client"))]
@@ -42,7 +43,7 @@ use tracing::error;
 /// #     .self_signed(&key_pair)
 /// #     .expect("Failed to sign CA certificate");
 /// #
-/// # let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000);
+/// # let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000, aws_lc_rs::default_provider());
 ///
 /// // let ca = ...;
 ///
@@ -50,12 +51,13 @@ use tracing::error;
 ///
 /// let proxy = Proxy::builder()
 ///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
-///     .with_rustls_client()
 ///     .with_ca(ca)
+///     .with_rustls_client(aws_lc_rs::default_provider())
 ///     .with_graceful_shutdown(async {
 ///         done.await.unwrap_or_default();
 ///     })
-///     .build();
+///     .build()
+///     .expect("Failed to create proxy");
 ///
 /// tokio::spawn(proxy.start());
 ///

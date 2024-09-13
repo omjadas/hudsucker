@@ -3,6 +3,7 @@ use futures::{SinkExt, StreamExt};
 use hudsucker::{
     certificate_authority::RcgenAuthority,
     rcgen::{CertificateParams, KeyPair},
+    rustls::crypto::aws_lc_rs,
     tokio_tungstenite::tungstenite::Message,
 };
 use std::sync::atomic::Ordering;
@@ -20,7 +21,7 @@ fn build_ca() -> RcgenAuthority {
         .self_signed(&key_pair)
         .expect("Failed to sign CA certificate");
 
-    RcgenAuthority::new(key_pair, ca_cert, 1000)
+    RcgenAuthority::new(key_pair, ca_cert, 1000, aws_lc_rs::default_provider())
 }
 
 #[tokio::test]
