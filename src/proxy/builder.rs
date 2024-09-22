@@ -23,8 +23,12 @@ use tokio_tungstenite::Connector;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
+    #[cfg(feature = "native-tls-client")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "native-tls-client")))]
     #[error("{0}")]
     NativeTls(#[from] hyper_tls::native_tls::Error),
+    #[cfg(feature = "rustls-client")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-client")))]
     #[error("{0}")]
     Rustls(#[from] tokio_rustls::rustls::Error),
 }
@@ -59,7 +63,8 @@ pub enum Error {
 ///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
 ///     .with_ca(ca)
 ///     .with_rustls_client(aws_lc_rs::default_provider())
-///     .build();
+///     .build()
+///     .expect("Failed to create proxy");
 /// # }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
