@@ -1,13 +1,5 @@
+use crate::builder;
 use thiserror::Error;
-
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum BuilderError {
-    #[error("{0}")]
-    NativeTls(#[from] hyper_tls::native_tls::Error),
-    #[error("{0}")]
-    Rustls(#[from] tokio_rustls::rustls::Error),
-}
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -19,7 +11,7 @@ pub enum Error {
     #[error("unable to decode body")]
     Decode,
     #[error("builder error")]
-    Builder(#[from] BuilderError),
+    Builder(#[from] builder::Error),
     #[error("unknown error")]
     Unknown,
 }

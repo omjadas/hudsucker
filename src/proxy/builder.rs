@@ -1,6 +1,6 @@
 use crate::{
-    certificate_authority::CertificateAuthority, error::BuilderError, Body, Error, HttpHandler,
-    NoopHandler, Proxy, WebSocketHandler,
+    certificate_authority::CertificateAuthority, Body, HttpHandler, NoopHandler, Proxy,
+    WebSocketHandler,
 };
 use hyper_util::{
     client::legacy::{
@@ -15,9 +15,19 @@ use std::{
     net::SocketAddr,
     sync::Arc,
 };
+use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio_rustls::rustls::{crypto::CryptoProvider, ClientConfig};
 use tokio_tungstenite::Connector;
+
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum Error {
+    #[error("{0}")]
+    NativeTls(#[from] hyper_tls::native_tls::Error),
+    #[error("{0}")]
+    Rustls(#[from] tokio_rustls::rustls::Error),
+}
 
 /// A builder for creating a [`Proxy`].
 ///
@@ -131,7 +141,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
                 return ProxyBuilder(WantsHandlers {
                     al: self.0.al,
                     ca: self.0.ca,
-                    client: Err(BuilderError::from(e)),
+                    client: Err(Error::from(e)),
                     http_handler: NoopHandler::new(),
                     websocket_handler: NoopHandler::new(),
                     websocket_connector: None,
@@ -179,7 +189,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
                 return ProxyBuilder(WantsHandlers {
                     al: self.0.al,
                     ca: self.0.ca,
-                    client: Err(BuilderError::from(e)),
+                    client: Err(Error::from(e)),
                     http_handler: NoopHandler::new(),
                     websocket_handler: NoopHandler::new(),
                     websocket_connector: None,
@@ -232,7 +242,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
 pub struct WantsHandlers<CA, C, H, W, F> {
     al: AddrOrListener,
     ca: CA,
-    client: Result<Client<C, Body>, BuilderError>,
+    client: Result<Client<C, Body>, Error>,
     http_handler: H,
     websocket_handler: W,
     websocket_connector: Option<Connector>,
@@ -309,7 +319,7 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
     }
 
     /// Build the proxy.
-    pub fn build(self) -> Result<Proxy<C, CA, H, W, F>, Error> {
+    pub fn build(self) -> Result<Proxy<C, CA, H, W, F>, crate::Error> {
         Ok(Proxy {
             al: self.0.al,
             ca: Arc::new(self.0.ca),
