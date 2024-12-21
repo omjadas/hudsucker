@@ -4,13 +4,15 @@ use hudsucker::{
     certificate_authority::RcgenAuthority,
     rcgen::{CertificateParams, KeyPair},
     rustls::crypto::aws_lc_rs,
-    tokio_tungstenite::tungstenite::Message,
+    tokio_tungstenite::tungstenite::{Message, Utf8Bytes},
 };
 use std::sync::atomic::Ordering;
 use tokio::net::TcpStream;
 
 #[allow(unused)]
 mod common;
+
+const HELLO: Utf8Bytes = Utf8Bytes::from_static("hello");
 
 fn build_ca() -> RcgenAuthority {
     let key_pair = include_str!("../examples/ca/hudsucker.key");
@@ -49,11 +51,11 @@ async fn http() {
         .await
         .unwrap();
 
-    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+    ws.send(Message::Text(HELLO)).await.unwrap();
 
     let msg = ws.next().await.unwrap().unwrap();
 
-    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
     assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
@@ -86,11 +88,11 @@ async fn https_rustls() {
     .await
     .unwrap();
 
-    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+    ws.send(Message::Text(HELLO)).await.unwrap();
 
     let msg = ws.next().await.unwrap().unwrap();
 
-    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
     assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
@@ -123,11 +125,11 @@ async fn https_native_tls() {
     .await
     .unwrap();
 
-    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+    ws.send(Message::Text(HELLO)).await.unwrap();
 
     let msg = ws.next().await.unwrap().unwrap();
 
-    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
     assert_eq!(handler.message_counter.load(Ordering::Relaxed), 2);
 
     stop_server.send(()).unwrap();
@@ -159,11 +161,11 @@ async fn without_intercept() {
         .await
         .unwrap();
 
-    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+    ws.send(Message::Text(HELLO)).await.unwrap();
 
     let msg = ws.next().await.unwrap().unwrap();
 
-    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
     assert_eq!(handler.message_counter.load(Ordering::Relaxed), 0);
 
     stop_server.send(()).unwrap();
@@ -188,10 +190,10 @@ async fn noop() {
         .await
         .unwrap();
 
-    ws.send(Message::Text("hello".to_owned())).await.unwrap();
+    ws.send(Message::Text(HELLO)).await.unwrap();
     let msg = ws.next().await.unwrap().unwrap();
 
-    assert_eq!(msg.to_string(), common::WORLD);
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
 
     stop_server.send(()).unwrap();
     stop_proxy.send(()).unwrap();

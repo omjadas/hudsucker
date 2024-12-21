@@ -16,7 +16,7 @@ use hudsucker::{
         server::conn::auto,
     },
     rustls,
-    tokio_tungstenite::tungstenite::Message,
+    tokio_tungstenite::tungstenite::{Message, Utf8Bytes},
     Body, HttpContext, HttpHandler, Proxy, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
@@ -34,8 +34,8 @@ use tokio_graceful::Shutdown;
 use tokio_native_tls::native_tls;
 use tokio_util::io::ReaderStream;
 
-pub const HELLO_WORLD: &str = "Hello, World!";
-pub const WORLD: &str = "world";
+pub const HELLO_WORLD: &str = "Hello, World";
+pub const WORLD: Utf8Bytes = Utf8Bytes::from_static("world");
 
 async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
     if hyper_tungstenite::is_upgrade_request(&req) {
@@ -49,7 +49,7 @@ async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallibl
                 if msg.is_close() {
                     break;
                 }
-                ws.send(Message::Text(WORLD.to_owned())).await.unwrap();
+                ws.send(Message::Text(WORLD)).await.unwrap();
             }
         });
 
