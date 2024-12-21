@@ -128,7 +128,6 @@ fn decode_body<'a>(
 ///     }
 /// }
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
     if !req.headers().contains_key(CONTENT_ENCODING) {
         return Ok(req);
@@ -182,7 +181,6 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///     }
 /// }
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "decoder")))]
 pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error> {
     if !res.headers().contains_key(CONTENT_ENCODING) {
         return Ok(res);

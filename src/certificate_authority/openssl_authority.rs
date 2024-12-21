@@ -49,7 +49,6 @@ use tracing::debug;
 ///     aws_lc_rs::default_provider(),
 /// );
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "openssl-ca")))]
 pub struct OpensslAuthority {
     pkey: PKey<Private>,
     private_key: PrivateKeyDer<'static>,

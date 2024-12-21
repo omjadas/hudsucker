@@ -3,10 +3,7 @@ use crate::{
     WebSocketHandler,
 };
 use hyper_util::{
-    client::legacy::{
-        connect::{Connect, HttpConnector},
-        Client,
-    },
+    client::legacy::{connect::Connect, Client},
     rt::TokioExecutor,
     server::conn::auto::Builder,
 };
@@ -24,11 +21,9 @@ use tokio_tungstenite::Connector;
 #[non_exhaustive]
 pub enum Error {
     #[cfg(feature = "native-tls-client")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "native-tls-client")))]
     #[error("{0}")]
     NativeTls(#[from] hyper_tls::native_tls::Error),
     #[cfg(feature = "rustls-client")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-client")))]
     #[error("{0}")]
     Rustls(#[from] tokio_rustls::rustls::Error),
 }
@@ -130,7 +125,6 @@ pub struct WantsClient<CA> {
 impl<CA> ProxyBuilder<WantsClient<CA>> {
     /// Use a hyper-rustls connector.
     #[cfg(feature = "rustls-client")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls-client")))]
     pub fn with_rustls_client(
         self,
         provider: CryptoProvider,
@@ -183,11 +177,12 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
 
     /// Use a hyper-tls connector.
     #[cfg(feature = "native-tls-client")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "native-tls-client")))]
     pub fn with_native_tls_client(
         self,
     ) -> ProxyBuilder<WantsHandlers<CA, impl Connect + Clone, NoopHandler, NoopHandler, Pending<()>>>
     {
+        use hyper_util::client::legacy::connect::HttpConnector;
+
         let tls_connector = match hyper_tls::native_tls::TlsConnector::new() {
             Ok(tls_connector) => tls_connector,
             Err(e) => {

@@ -36,7 +36,6 @@ use tracing::debug;
 ///
 /// let ca = RcgenAuthority::new(key_pair, ca_cert, 1_000, aws_lc_rs::default_provider());
 /// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "rcgen-ca")))]
 pub struct RcgenAuthority {
     key_pair: KeyPair,
     ca_cert: Certificate,
