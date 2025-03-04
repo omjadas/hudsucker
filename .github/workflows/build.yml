@@ -24,7 +24,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - "1.75.0"
+          - "1.85.0"
 
     steps:
       - uses: actions/checkout@v4

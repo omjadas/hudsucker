@@ -1,15 +1,15 @@
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hudsucker::{
+    Body, Proxy,
     certificate_authority::{CertificateAuthority, RcgenAuthority},
-    hyper::{body::Incoming, service::service_fn, Method, Request, Response},
+    hyper::{Method, Request, Response, body::Incoming, service::service_fn},
     hyper_util::{
-        client::legacy::{connect::HttpConnector, Client},
+        client::legacy::{Client, connect::HttpConnector},
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
     rcgen::{CertificateParams, KeyPair},
     rustls::crypto::aws_lc_rs,
-    Body, Proxy,
 };
 use reqwest::Certificate;
 use std::{convert::Infallible, net::SocketAddr};

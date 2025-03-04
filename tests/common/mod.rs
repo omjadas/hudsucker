@@ -1,23 +1,23 @@
 use async_compression::tokio::bufread::GzipEncoder;
 use futures::{SinkExt, StreamExt};
 use hudsucker::{
+    Body, HttpContext, HttpHandler, Proxy, RequestOrResponse, WebSocketContext, WebSocketHandler,
     certificate_authority::CertificateAuthority,
     decode_request, decode_response,
     hyper::{
-        body::Incoming, header::CONTENT_ENCODING, service::service_fn, Method, Request, Response,
-        StatusCode,
+        Method, Request, Response, StatusCode, body::Incoming, header::CONTENT_ENCODING,
+        service::service_fn,
     },
     hyper_util::{
         client::legacy::{
-            connect::{Connect, HttpConnector},
             Client,
+            connect::{Connect, HttpConnector},
         },
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
     rustls,
     tokio_tungstenite::tungstenite::{Message, Utf8Bytes},
-    Body, HttpContext, HttpHandler, Proxy, RequestOrResponse, WebSocketContext, WebSocketHandler,
 };
 use reqwest::tls::Certificate;
 use rustls_pemfile as pemfile;
@@ -25,8 +25,8 @@ use std::{
     convert::Infallible,
     net::SocketAddr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 use tokio::{net::TcpListener, sync::oneshot::Sender};

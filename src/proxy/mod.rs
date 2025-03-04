@@ -3,18 +3,18 @@ mod internal;
 pub mod builder;
 
 use crate::{
-    builder::ProxyBuilder, certificate_authority::CertificateAuthority, Body, Error, HttpHandler,
-    WebSocketHandler,
+    Body, Error, HttpHandler, WebSocketHandler, builder::ProxyBuilder,
+    certificate_authority::CertificateAuthority,
 };
 use builder::{AddrOrListener, WantsAddr};
 use hyper::service::service_fn;
 use hyper_util::{
-    client::legacy::{connect::Connect, Client},
+    client::legacy::{Client, connect::Connect},
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::{self, Builder},
 };
 use internal::InternalProxy;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_graceful::Shutdown;
 use tokio_tungstenite::Connector;

@@ -3,9 +3,9 @@ use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder,
 use bstr::ByteSlice;
 use futures::Stream;
 use hyper::{
-    body::{Body as HttpBody, Bytes},
-    header::{HeaderMap, HeaderValue, CONTENT_ENCODING, CONTENT_LENGTH},
     Request, Response,
+    body::{Body as HttpBody, Bytes},
+    header::{CONTENT_ENCODING, CONTENT_LENGTH, HeaderMap, HeaderValue},
 };
 use std::{
     io,
@@ -108,7 +108,7 @@ fn decode_body<'a>(
 ///
 /// ```rust
 /// use hudsucker::{
-///     decode_request, hyper::Request, Body, HttpContext, HttpHandler, RequestOrResponse,
+///     Body, HttpContext, HttpHandler, RequestOrResponse, decode_request, hyper::Request,
 /// };
 ///
 /// #[derive(Clone)]
@@ -162,7 +162,7 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 /// # Examples
 ///
 /// ```rust
-/// use hudsucker::{decode_response, hyper::Response, Body, HttpContext, HttpHandler};
+/// use hudsucker::{Body, HttpContext, HttpHandler, decode_response, hyper::Response};
 ///
 /// #[derive(Clone)]
 /// pub struct MyHandler;

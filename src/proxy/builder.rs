@@ -1,20 +1,20 @@
 use crate::{
-    certificate_authority::CertificateAuthority, Body, HttpHandler, NoopHandler, Proxy,
-    WebSocketHandler,
+    Body, HttpHandler, NoopHandler, Proxy, WebSocketHandler,
+    certificate_authority::CertificateAuthority,
 };
 use hyper_util::{
-    client::legacy::{connect::Connect, Client},
+    client::legacy::{Client, connect::Connect},
     rt::TokioExecutor,
     server::conn::auto::Builder,
 };
 use std::{
-    future::{pending, Future, Pending},
+    future::{Pending, pending},
     net::SocketAddr,
     sync::Arc,
 };
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio_rustls::rustls::{crypto::CryptoProvider, ClientConfig};
+use tokio_rustls::rustls::{ClientConfig, crypto::CryptoProvider};
 use tokio_tungstenite::Connector;
 
 #[derive(Debug, Error)]
@@ -195,7 +195,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
                     websocket_connector: None,
                     server: None,
                     graceful_shutdown: pending(),
-                })
+                });
             }
         };
 

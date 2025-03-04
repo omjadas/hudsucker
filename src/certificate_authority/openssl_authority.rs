@@ -1,4 +1,4 @@
-use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS};
+use crate::certificate_authority::{CACHE_TTL, CertificateAuthority, NOT_BEFORE_OFFSET, TTL_SECS};
 use http::uri::Authority;
 use moka::future::Cache;
 use openssl::{
@@ -8,16 +8,16 @@ use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private},
     rand,
-    x509::{extension::SubjectAlternativeName, X509Builder, X509NameBuilder, X509},
+    x509::{X509, X509Builder, X509NameBuilder, extension::SubjectAlternativeName},
 };
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
 use tokio_rustls::rustls::{
+    ServerConfig,
     crypto::CryptoProvider,
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
-    ServerConfig,
 };
 use tracing::debug;
 
@@ -131,9 +131,10 @@ impl CertificateAuthority for OpensslAuthority {
         }
         debug!("Generating server config");
 
-        let certs = vec![self
-            .gen_cert(authority)
-            .unwrap_or_else(|_| panic!("Failed to generate certificate for {}", authority))];
+        let certs = vec![
+            self.gen_cert(authority)
+                .unwrap_or_else(|_| panic!("Failed to generate certificate for {}", authority)),
+        ];
 
         let mut server_cfg = ServerConfig::builder_with_provider(Arc::clone(&self.provider))
             .with_safe_default_protocol_versions()

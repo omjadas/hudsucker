@@ -1,16 +1,16 @@
-use crate::certificate_authority::{CertificateAuthority, CACHE_TTL, NOT_BEFORE_OFFSET, TTL_SECS};
+use crate::certificate_authority::{CACHE_TTL, CertificateAuthority, NOT_BEFORE_OFFSET, TTL_SECS};
 use http::uri::Authority;
 use moka::future::Cache;
-use rand::{thread_rng, Rng};
+use rand::{Rng, rng};
 use rcgen::{
     Certificate, CertificateParams, DistinguishedName, DnType, Ia5String, KeyPair, SanType,
 };
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
 use tokio_rustls::rustls::{
+    ServerConfig,
     crypto::CryptoProvider,
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
-    ServerConfig,
 };
 use tracing::debug;
 
@@ -68,7 +68,7 @@ impl RcgenAuthority {
 
     fn gen_cert(&self, authority: &Authority) -> CertificateDer<'static> {
         let mut params = CertificateParams::default();
-        params.serial_number = Some(thread_rng().gen::<u64>().into());
+        params.serial_number = Some(rng().random::<u64>().into());
 
         let not_before = OffsetDateTime::now_utc() - Duration::seconds(NOT_BEFORE_OFFSET);
         params.not_before = not_before;

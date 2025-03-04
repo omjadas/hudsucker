@@ -1,29 +1,29 @@
 use crate::{
-    body::Body, certificate_authority::CertificateAuthority, rewind::Rewind, HttpContext,
-    HttpHandler, RequestOrResponse, WebSocketContext, WebSocketHandler,
+    HttpContext, HttpHandler, RequestOrResponse, WebSocketContext, WebSocketHandler, body::Body,
+    certificate_authority::CertificateAuthority, rewind::Rewind,
 };
 use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
 use hyper::{
+    Method, Request, Response, StatusCode, Uri,
     body::{Bytes, Incoming},
     header::Entry,
     service::service_fn,
     upgrade::Upgraded,
-    Method, Request, Response, StatusCode, Uri,
 };
 use hyper_util::{
-    client::legacy::{connect::Connect, Client},
+    client::legacy::{Client, connect::Connect},
     rt::{TokioExecutor, TokioIo},
     server,
 };
-use std::{convert::Infallible, future::Future, net::SocketAddr, sync::Arc};
+use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
-    tungstenite::{self, Message},
     Connector, WebSocketStream,
+    tungstenite::{self, Message},
 };
-use tracing::{error, info_span, instrument, warn, Instrument, Span};
+use tracing::{Instrument, Span, error, info_span, instrument, warn};
 
 fn bad_request() -> Response<Body> {
     Response::builder()

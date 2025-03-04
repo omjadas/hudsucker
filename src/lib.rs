@@ -28,7 +28,7 @@ pub mod certificate_authority;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use hyper::{Request, Response, StatusCode, Uri};
-use std::{future::Future, net::SocketAddr};
+use std::net::SocketAddr;
 use tokio_tungstenite::tungstenite::{self, Message};
 use tracing::error;
 

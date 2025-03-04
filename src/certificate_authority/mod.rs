@@ -4,7 +4,7 @@ mod openssl_authority;
 mod rcgen_authority;
 
 use http::uri::Authority;
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 use tokio_rustls::rustls::ServerConfig;
 
 #[cfg(feature = "openssl-ca")]
