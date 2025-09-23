@@ -8,7 +8,7 @@ use hudsucker::{
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
-    rcgen::{CertificateParams, KeyPair},
+    rcgen::{Issuer, KeyPair},
     rustls::crypto::aws_lc_rs,
 };
 use reqwest::Certificate;
@@ -29,12 +29,10 @@ fn build_ca() -> RcgenAuthority {
     let key_pair = include_str!("../examples/ca/hudsucker.key");
     let ca_cert = include_str!("../examples/ca/hudsucker.cer");
     let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
-    let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
-        .expect("Failed to parse CA certificate")
-        .self_signed(&key_pair)
-        .expect("Failed to sign CA certificate");
+    let issuer =
+        Issuer::from_ca_cert_pem(ca_cert, key_pair).expect("Failed to parse CA certificate");
 
-    RcgenAuthority::new(key_pair, ca_cert, 1000, aws_lc_rs::default_provider())
+    RcgenAuthority::new(issuer, 1000, aws_lc_rs::default_provider())
 }
 
 async fn test_server(req: Request<Incoming>) -> Result<Response<Body>, Infallible> {
