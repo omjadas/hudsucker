@@ -3,7 +3,7 @@ use http::uri::Authority;
 use hudsucker::{
     certificate_authority::{CertificateAuthority, OpensslAuthority, RcgenAuthority},
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
-    rcgen::{CertificateParams, KeyPair},
+    rcgen::{Issuer, KeyPair},
     rustls::crypto::aws_lc_rs,
 };
 
@@ -17,12 +17,10 @@ fn build_rcgen_ca(cache_size: u64) -> RcgenAuthority {
     let key_pair = include_str!("../examples/ca/hudsucker.key");
     let ca_cert = include_str!("../examples/ca/hudsucker.cer");
     let key_pair = KeyPair::from_pem(key_pair).expect("Failed to parse private key");
-    let ca_cert = CertificateParams::from_ca_cert_pem(ca_cert)
-        .expect("Failed to parse CA certificate")
-        .self_signed(&key_pair)
-        .expect("Failed to sign CA certificate");
+    let issuer =
+        Issuer::from_ca_cert_pem(ca_cert, key_pair).expect("Failed to parse CA certificate");
 
-    RcgenAuthority::new(key_pair, ca_cert, cache_size, aws_lc_rs::default_provider())
+    RcgenAuthority::new(issuer, cache_size, aws_lc_rs::default_provider())
 }
 
 fn build_openssl_ca(cache_size: u64) -> OpensslAuthority {
