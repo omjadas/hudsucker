@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use http::uri::Authority;
 use hudsucker::{
     certificate_authority::{CertificateAuthority, OpensslAuthority, RcgenAuthority},
@@ -6,6 +6,7 @@ use hudsucker::{
     rcgen::{Issuer, KeyPair},
     rustls::crypto::aws_lc_rs,
 };
+use std::hint::black_box;
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
