@@ -14,7 +14,7 @@ use hyper::{
 use hyper_util::{
     client::legacy::{Client, connect::Connect},
     rt::{TokioExecutor, TokioIo},
-    server,
+    server::conn::auto::Builder as ServerBuilder,
 };
 use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
@@ -42,7 +42,7 @@ fn spawn_with_trace<T: Send + Sync + 'static>(
 pub(crate) struct InternalProxy<C, CA, H, W> {
     pub ca: Arc<CA>,
     pub client: Client<C, Body>,
-    pub server: server::conn::auto::Builder<TokioExecutor>,
+    pub server: ServerBuilder<TokioExecutor>,
     pub http_handler: H,
     pub websocket_handler: W,
     pub websocket_connector: Option<Connector>,
@@ -411,7 +411,7 @@ mod tests {
         InternalProxy {
             ca: Arc::new(CA),
             client: Client::builder(TokioExecutor::new()).build(HttpConnector::new()),
-            server: server::conn::auto::Builder::new(TokioExecutor::new()),
+            server: ServerBuilder::new(TokioExecutor::new()),
             http_handler: crate::NoopHandler::new(),
             websocket_handler: crate::NoopHandler::new(),
             websocket_connector: None,

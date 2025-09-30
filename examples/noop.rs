@@ -28,7 +28,7 @@ async fn main() {
     let proxy = Proxy::builder()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
         .with_ca(ca)
-        .with_rustls_client(aws_lc_rs::default_provider())
+        .with_rustls_connector(aws_lc_rs::default_provider())
         .with_graceful_shutdown(shutdown_signal())
         .build()
         .expect("Failed to create proxy");

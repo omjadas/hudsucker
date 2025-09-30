@@ -21,7 +21,7 @@ fn build_ca() -> RcgenAuthority {
 async fn https_rustls() {
     let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
-        common::rustls_client(),
+        common::rustls_http_connector(),
         common::rustls_websocket_connector(),
     )
     .await
@@ -48,7 +48,7 @@ async fn https_rustls() {
 async fn https_native_tls() {
     let (proxy_addr, handler, stop_proxy) = common::start_proxy(
         build_ca(),
-        common::native_tls_client(),
+        common::native_tls_http_connector(),
         common::native_tls_websocket_connector(),
     )
     .await
@@ -75,7 +75,7 @@ async fn https_native_tls() {
 async fn without_intercept() {
     let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_intercept(
         build_ca(),
-        common::http_client(),
+        common::http_connector(),
         common::plain_websocket_connector(),
     )
     .await
@@ -102,7 +102,7 @@ async fn without_intercept() {
 async fn decodes_response() {
     let (proxy_addr, _, stop_proxy) = common::start_proxy(
         build_ca(),
-        common::native_tls_client(),
+        common::native_tls_http_connector(),
         common::native_tls_websocket_connector(),
     )
     .await

@@ -4,7 +4,7 @@ use hudsucker::{
     certificate_authority::{CertificateAuthority, RcgenAuthority},
     hyper::{Method, Request, Response, body::Incoming, service::service_fn},
     hyper_util::{
-        client::legacy::{Client, connect::HttpConnector},
+        client::legacy::connect::HttpConnector,
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
@@ -119,7 +119,7 @@ pub async fn start_https_server(
     Ok((addr, tx))
 }
 
-fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>, Body> {
+fn native_tls_http_connector() -> hyper_tls::HttpsConnector<HttpConnector> {
     let mut http = HttpConnector::new();
     http.enforce_http(false);
     let ca_cert =
@@ -131,9 +131,7 @@ fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>, Body>
         .unwrap()
         .into();
 
-    let https = (http, tls).into();
-
-    Client::builder(TokioExecutor::new()).build(https)
+    (http, tls).into()
 }
 
 async fn start_proxy(
@@ -145,7 +143,7 @@ async fn start_proxy(
     let proxy = Proxy::builder()
         .with_listener(listener)
         .with_ca(ca)
-        .with_client(native_tls_client())
+        .with_http_connector(native_tls_http_connector())
         .with_graceful_shutdown(async {
             rx.await.unwrap_or_default();
         })

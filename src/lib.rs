@@ -11,10 +11,10 @@
 //! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers (enabled by default).
 //! - `full`: Enables all features.
 //! - `http2`: Enables HTTP/2 support.
-//! - `native-tls-client`: Enables [`ProxyBuilder::with_native_tls_client`](builder::ProxyBuilder::with_native_tls_client).
+//! - `native-tls-client`: Enables [`ProxyBuilder::with_native_tls_connector`](builder::ProxyBuilder::with_native_tls_connector).
 //! - `openssl-ca`: Enables [`OpensslAuthority`](certificate_authority::OpensslAuthority).
 //! - `rcgen-ca`: Enables [`RcgenAuthority`](certificate_authority::RcgenAuthority) (enabled by default).
-//! - `rustls-client`: Enables [`ProxyBuilder::with_rustls_client`](builder::ProxyBuilder::with_rustls_client) (enabled by default).
+//! - `rustls-client`: Enables [`ProxyBuilder::with_rustls_connector`](builder::ProxyBuilder::with_rustls_connector) (enabled by default).
 
 mod body;
 #[cfg(feature = "decoder")]

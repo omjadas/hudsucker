@@ -9,10 +9,7 @@ use hudsucker::{
         service::service_fn,
     },
     hyper_util::{
-        client::legacy::{
-            Client,
-            connect::{Connect, HttpConnector},
-        },
+        client::legacy::connect::{Connect, HttpConnector},
         rt::{TokioExecutor, TokioIo},
         server::conn::auto,
     },
@@ -147,8 +144,8 @@ pub async fn start_https_server(
     Ok((addr, tx))
 }
 
-pub fn http_client() -> Client<HttpConnector, Body> {
-    Client::builder(TokioExecutor::new()).build_http()
+pub fn http_connector() -> HttpConnector {
+    HttpConnector::new()
 }
 
 pub fn plain_websocket_connector() -> tokio_tungstenite::Connector {
@@ -179,17 +176,12 @@ pub fn rustls_websocket_connector() -> tokio_tungstenite::Connector {
     tokio_tungstenite::Connector::Rustls(Arc::new(rustls_client_config()))
 }
 
-pub fn rustls_client() -> Client<hyper_rustls::HttpsConnector<HttpConnector>, Body> {
-    let https = hyper_rustls::HttpsConnectorBuilder::new()
+pub fn rustls_http_connector() -> hyper_rustls::HttpsConnector<HttpConnector> {
+    hyper_rustls::HttpsConnectorBuilder::new()
         .with_tls_config(rustls_client_config())
         .https_or_http()
         .enable_http1()
-        .build();
-
-    Client::builder(TokioExecutor::new())
-        .http1_title_case_headers(true)
-        .http1_preserve_header_case(true)
-        .build(https)
+        .build()
 }
 
 fn native_tls_connector() -> native_tls::TlsConnector {
@@ -207,41 +199,39 @@ pub fn native_tls_websocket_connector() -> tokio_tungstenite::Connector {
     tokio_tungstenite::Connector::NativeTls(native_tls_connector())
 }
 
-pub fn native_tls_client() -> Client<hyper_tls::HttpsConnector<HttpConnector>, Body> {
+pub fn native_tls_http_connector() -> hyper_tls::HttpsConnector<HttpConnector> {
     let mut http = HttpConnector::new();
     http.enforce_http(false);
 
     let tls = native_tls_connector().into();
-    let https = (http, tls).into();
-
-    Client::builder(TokioExecutor::new()).build(https)
+    (http, tls).into()
 }
 
 pub async fn start_proxy<C>(
     ca: impl CertificateAuthority,
-    client: Client<C, Body>,
+    http_connector: C,
     websocket_connector: tokio_tungstenite::Connector,
 ) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    _start_proxy(ca, client, websocket_connector, true).await
+    _start_proxy(ca, http_connector, websocket_connector, true).await
 }
 
 pub async fn start_proxy_without_intercept<C>(
     ca: impl CertificateAuthority,
-    client: Client<C, Body>,
+    http_connector: C,
     websocket_connector: tokio_tungstenite::Connector,
 ) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    _start_proxy(ca, client, websocket_connector, false).await
+    _start_proxy(ca, http_connector, websocket_connector, false).await
 }
 
 async fn _start_proxy<C>(
     ca: impl CertificateAuthority,
-    client: Client<C, Body>,
+    http_connector: C,
     websocket_connector: tokio_tungstenite::Connector,
     should_intercept: bool,
 ) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
@@ -257,7 +247,7 @@ where
     let proxy = Proxy::builder()
         .with_listener(listener)
         .with_ca(ca)
-        .with_client(client)
+        .with_http_connector(http_connector)
         .with_http_handler(handler.clone())
         .with_websocket_handler(handler.clone())
         .with_websocket_connector(websocket_connector)
@@ -281,7 +271,7 @@ pub async fn start_noop_proxy(
     let proxy = Proxy::builder()
         .with_listener(listener)
         .with_ca(ca)
-        .with_client(native_tls_client())
+        .with_http_connector(native_tls_http_connector())
         .with_graceful_shutdown(async {
             rx.await.unwrap_or_default();
         })

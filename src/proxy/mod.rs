@@ -3,15 +3,15 @@ mod internal;
 pub mod builder;
 
 use crate::{
-    Body, Error, HttpHandler, WebSocketHandler, builder::ProxyBuilder,
+    Error, HttpHandler, WebSocketHandler, builder::ProxyBuilder,
     certificate_authority::CertificateAuthority,
 };
 use builder::{AddrOrListener, WantsAddr};
 use hyper::service::service_fn;
 use hyper_util::{
-    client::legacy::{Client, connect::Connect},
+    client::legacy::{Builder as ClientBuilder, Client, connect::Connect},
     rt::{TokioExecutor, TokioIo},
-    server::conn::auto::{self, Builder},
+    server::conn::auto::Builder as ServerBuilder,
 };
 use internal::InternalProxy;
 use std::sync::Arc;
@@ -50,7 +50,7 @@ use tracing::error;
 /// let proxy = Proxy::builder()
 ///     .with_addr(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
 ///     .with_ca(ca)
-///     .with_rustls_client(aws_lc_rs::default_provider())
+///     .with_rustls_connector(aws_lc_rs::default_provider())
 ///     .with_graceful_shutdown(async {
 ///         done.await.unwrap_or_default();
 ///     })
@@ -70,11 +70,12 @@ use tracing::error;
 pub struct Proxy<C, CA, H, W, F> {
     al: AddrOrListener,
     ca: Arc<CA>,
-    client: Client<C, Body>,
+    http_connector: C,
+    client: Option<ClientBuilder>,
     http_handler: H,
     websocket_handler: W,
     websocket_connector: Option<Connector>,
-    server: Option<Builder<TokioExecutor>>,
+    server: Option<ServerBuilder<TokioExecutor>>,
     graceful_shutdown: F,
 }
 
@@ -99,8 +100,19 @@ where
     ///
     /// This will return an error if the proxy server is unable to be started.
     pub async fn start(self) -> Result<(), Error> {
+        let client = self
+            .client
+            .unwrap_or_else(|| {
+                let mut builder = Client::builder(TokioExecutor::new());
+                builder
+                    .http1_title_case_headers(true)
+                    .http1_preserve_header_case(true);
+                builder
+            })
+            .build(self.http_connector);
+
         let server = self.server.unwrap_or_else(|| {
-            let mut builder = auto::Builder::new(TokioExecutor::new());
+            let mut builder = ServerBuilder::new(TokioExecutor::new());
             builder
                 .http1()
                 .title_case_headers(true)
@@ -127,8 +139,8 @@ where
                         }
                     };
 
+                    let client = client.clone();
                     let server = server.clone();
-                    let client = self.client.clone();
                     let ca = Arc::clone(&self.ca);
                     let http_handler = self.http_handler.clone();
                     let websocket_handler = self.websocket_handler.clone();
