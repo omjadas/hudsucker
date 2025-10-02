@@ -4,7 +4,7 @@ use crate::{
 use hyper_util::{
     client::legacy::{Builder as ClientBuilder, connect::Connect},
     rt::TokioExecutor,
-    server::conn::auto::Builder,
+    server::conn::auto::Builder as ServerBuilder,
 };
 use std::{
     future::{Pending, pending},
@@ -243,7 +243,7 @@ pub struct WantsHandlers<CA, C, H, W, F> {
     http_handler: H,
     websocket_handler: W,
     websocket_connector: Option<Connector>,
-    server: Option<Builder<TokioExecutor>>,
+    server: Option<ServerBuilder<TokioExecutor>>,
     graceful_shutdown: F,
 }
 
@@ -292,8 +292,16 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         })
     }
 
+    /// Set a custom client builder to use for the proxy server.
+    pub fn with_client(self, client: ClientBuilder) -> Self {
+        ProxyBuilder(WantsHandlers {
+            client: Some(client),
+            ..self.0
+        })
+    }
+
     /// Set a custom server builder to use for the proxy server.
-    pub fn with_server(self, server: Builder<TokioExecutor>) -> Self {
+    pub fn with_server(self, server: ServerBuilder<TokioExecutor>) -> Self {
         ProxyBuilder(WantsHandlers {
             server: Some(server),
             ..self.0
