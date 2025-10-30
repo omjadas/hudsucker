@@ -3,7 +3,13 @@ use http::uri::Authority;
 use moka::future::Cache;
 use rand::{Rng, rng};
 use rcgen::{
-    CertificateParams, DistinguishedName, DnType, Issuer, KeyPair, SanType, string::Ia5String,
+    CertificateParams,
+    DistinguishedName,
+    DnType,
+    Issuer,
+    KeyPair,
+    SanType,
+    string::Ia5String,
 };
 use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
@@ -16,9 +22,9 @@ use tracing::debug;
 
 /// Issues certificates for use when communicating with clients.
 ///
-/// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
-/// up to a max size that is provided when creating the authority. Certificates are generated using
-/// the `rcgen` crate.
+/// Issues certificates for communicating with clients over TLS. Certificates
+/// are cached in memory up to a max size that is provided when creating the
+/// authority. Certificates are generated using the `rcgen` crate.
 ///
 /// # Examples
 ///

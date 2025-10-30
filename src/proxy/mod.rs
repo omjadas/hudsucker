@@ -3,7 +3,10 @@ mod internal;
 pub mod builder;
 
 use crate::{
-    Error, HttpHandler, WebSocketHandler, builder::ProxyBuilder,
+    Error,
+    HttpHandler,
+    WebSocketHandler,
+    builder::ProxyBuilder,
     certificate_authority::CertificateAuthority,
 };
 use builder::{AddrOrListener, WantsAddr};

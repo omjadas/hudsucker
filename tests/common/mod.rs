@@ -1,11 +1,23 @@
 use async_compression::tokio::bufread::GzipEncoder;
 use futures::{SinkExt, StreamExt};
 use hudsucker::{
-    Body, HttpContext, HttpHandler, Proxy, RequestOrResponse, WebSocketContext, WebSocketHandler,
+    Body,
+    HttpContext,
+    HttpHandler,
+    Proxy,
+    RequestOrResponse,
+    WebSocketContext,
+    WebSocketHandler,
     certificate_authority::CertificateAuthority,
-    decode_request, decode_response,
+    decode_request,
+    decode_response,
     hyper::{
-        Method, Request, Response, StatusCode, body::Incoming, header::CONTENT_ENCODING,
+        Method,
+        Request,
+        Response,
+        StatusCode,
+        body::Incoming,
+        header::CONTENT_ENCODING,
         service::service_fn,
     },
     hyper_util::{

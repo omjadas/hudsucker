@@ -1,6 +1,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hudsucker::{
-    Body, Proxy,
+    Body,
+    Proxy,
     certificate_authority::{CertificateAuthority, RcgenAuthority},
     hyper::{Method, Request, Response, body::Incoming, service::service_fn},
     hyper_util::{

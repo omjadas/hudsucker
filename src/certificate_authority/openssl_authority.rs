@@ -23,9 +23,9 @@ use tracing::debug;
 
 /// Issues certificates for use when communicating with clients.
 ///
-/// Issues certificates for communicating with clients over TLS. Certificates are cached in memory
-/// up to a max size that is provided when creating the authority. Certificates are generated using
-/// the `openssl` crate.
+/// Issues certificates for communicating with clients over TLS. Certificates
+/// are cached in memory up to a max size that is provided when creating the
+/// authority. Certificates are generated using the `openssl` crate.
 ///
 /// # Examples
 ///

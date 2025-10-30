@@ -3,7 +3,8 @@ use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder,
 use bstr::ByteSlice;
 use futures::Stream;
 use hyper::{
-    Request, Response,
+    Request,
+    Response,
     body::{Body as HttpBody, Bytes},
     header::{CONTENT_ENCODING, CONTENT_LENGTH, HeaderMap, HeaderValue},
 };
@@ -100,15 +101,19 @@ fn decode_body<'a>(
 ///
 /// # Errors
 ///
-/// This will return an error if either of the `content-encoding` or `content-length` headers are
-/// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
-/// supported.
+/// This will return an error if one of the values specified in the
+/// `content-encoding` header is not supported.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use hudsucker::{
-///     Body, HttpContext, HttpHandler, RequestOrResponse, decode_request, hyper::Request,
+///     Body,
+///     HttpContext,
+///     HttpHandler,
+///     RequestOrResponse,
+///     decode_request,
+///     hyper::Request,
 /// };
 ///
 /// #[derive(Clone)]
@@ -155,9 +160,8 @@ pub fn decode_request(mut req: Request<Body>) -> Result<Request<Body>, Error> {
 ///
 /// # Errors
 ///
-/// This will return an error if either of the `content-encoding` or `content-length` headers are
-/// unable to be parsed, or if one of the values specified in the `content-encoding` header is not
-/// supported.
+/// This will return an error if one of the values specified in the
+/// `content-encoding` header is not supported.
 ///
 /// # Examples
 ///

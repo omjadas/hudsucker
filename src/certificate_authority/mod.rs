@@ -18,8 +18,8 @@ const NOT_BEFORE_OFFSET: i64 = 60;
 
 /// Issues certificates for use when communicating with clients.
 ///
-/// Clients should be configured to either trust the provided root certificate, or to ignore
-/// certificate errors.
+/// Clients should be configured to either trust the provided root certificate,
+/// or to ignore certificate errors.
 pub trait CertificateAuthority: Send + Sync + 'static {
     /// Generate ServerConfig for use with rustls.
     fn gen_server_config(
