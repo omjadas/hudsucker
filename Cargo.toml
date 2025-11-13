@@ -1,15 +1,15 @@
 [package]
-name = "hudsucker"
-version = "0.24.0"
+name = "ideamans-hudsucker"
+version = "0.25.0"
 edition = "2024"
 rust-version = "1.85.0"
-description = "MITM HTTP/S proxy"
-documentation = "https://docs.rs/hudsucker"
+description = "MITM HTTP/S proxy with HTTP/2 request-response correlation support"
+documentation = "https://docs.rs/ideamans-hudsucker"
 readme = "README.md"
-homepage = "https://github.com/omjadas/hudsucker"
-repository = "https://github.com/omjadas/hudsucker"
+homepage = "https://github.com/ideamans/hudsucker"
+repository = "https://github.com/ideamans/hudsucker"
 license = "MIT OR Apache-2.0"
-keywords = ["http", "proxy"]
+keywords = ["http", "proxy", "mitm", "http2"]
 categories = ["network-programming"]
 exclude = [".github/"]
 
