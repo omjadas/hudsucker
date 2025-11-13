@@ -78,11 +78,19 @@ impl From<Response<Body>> for RequestOrResponse {
 }
 
 /// Context for HTTP requests and responses.
+///
+/// Contains information about the request being processed. This context is
+/// passed to both `handle_request` and `handle_response`, allowing handlers to
+/// correlate requests with their responses, which is especially useful for
+/// HTTP/2 multiplexing.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[non_exhaustive]
 pub struct HttpContext {
     /// Address of the client that is sending the request.
     pub client_addr: SocketAddr,
+    /// HTTP method of the request.
+    pub request_method: hyper::Method,
+    /// URI of the request.
+    pub request_uri: Uri,
 }
 
 /// Context for websocket messages.

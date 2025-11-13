@@ -86,9 +86,11 @@ where
     H: HttpHandler,
     W: WebSocketHandler,
 {
-    fn context(&self) -> HttpContext {
+    fn context_for_request(&self, req: &Request<Body>) -> HttpContext {
         HttpContext {
             client_addr: self.client_addr,
+            request_method: req.method().clone(),
+            request_uri: req.uri().clone(),
         }
     }
 
@@ -105,11 +107,12 @@ where
         mut self,
         req: Request<Incoming>,
     ) -> Result<Response<Body>, Infallible> {
-        let ctx = self.context();
+        let req = req.map(Body::from);
+        let ctx = self.context_for_request(&req);
 
         let req = match self
             .http_handler
-            .handle_request(&ctx, req.map(Body::from))
+            .handle_request(&ctx, req)
             .instrument(info_span!("handle_request"))
             .await
         {
@@ -143,7 +146,10 @@ where
         }
     }
 
-    fn process_connect(mut self, mut req: Request<Body>) -> Response<Body> {
+    fn process_connect(mut self, req: Request<Body>) -> Response<Body> {
+        let ctx = self.context_for_request(&req);
+        let mut req = req;
+
         match req.uri().authority().cloned() {
             Some(authority) => {
                 let span = info_span!("process_connect");
@@ -165,11 +171,7 @@ where
                                 Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
                             );
 
-                            if self
-                                .http_handler
-                                .should_intercept(&self.context(), &req)
-                                .await
-                            {
+                            if self.http_handler.should_intercept(&ctx, &req).await {
                                 if buffer == *b"GET " {
                                     if let Err(e) = self
                                         .serve_stream(
