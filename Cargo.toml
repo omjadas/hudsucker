@@ -44,7 +44,7 @@ tracing = { version = "0.1.35", features = ["log"] }
 
 [dev-dependencies]
 async-http-proxy = { version = "1.2.5", features = ["runtime-tokio"] }
-criterion = { version = "0.7.0", features = ["async_tokio"] }
+criterion = { version = "0.8.0", features = ["async_tokio"] }
 reqwest = "0.12.0"
 rustls-native-certs = "0.8.0"
 rustls-pemfile = "2.0.0"
