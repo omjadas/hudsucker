@@ -16,7 +16,7 @@ use hyper::{
     Response,
     StatusCode,
     Uri,
-    body::{Bytes, Incoming},
+    body::Incoming,
     header::Entry,
     service::service_fn,
     upgrade::Upgraded,
@@ -160,10 +160,7 @@ where
                                 }
                             };
 
-                            let mut upgraded = Rewind::new(
-                                upgraded,
-                                Bytes::copy_from_slice(buffer[..bytes_read].as_ref()),
-                            );
+                            let mut upgraded = Rewind::new(upgraded, buffer, bytes_read);
 
                             if self
                                 .http_handler

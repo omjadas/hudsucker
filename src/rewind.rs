@@ -1,6 +1,5 @@
 // adapted from https://github.com/hyperium/hyper/blob/master/src/common/io/rewind.rs
 
-use hyper::body::Bytes;
 use std::{
     cmp,
     io::{self, IoSlice},
@@ -10,22 +9,25 @@ use std::{
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 /// Combine a buffer with an IO, rewinding reads to use the buffer.
-#[derive(Debug)]
-pub(crate) struct Rewind<T> {
-    pre: Option<Bytes>,
+pub(crate) struct Rewind<T, const N: usize> {
+    prefix: [u8; N],
+    prefix_pos: usize,
+    prefix_len: usize,
     inner: T,
 }
 
-impl<T> Rewind<T> {
-    pub(crate) fn new(io: T, buf: Bytes) -> Self {
+impl<T, const N: usize> Rewind<T, N> {
+    pub(crate) fn new(io: T, prefix: [u8; N], prefix_len: usize) -> Self {
         Rewind {
-            pre: Some(buf),
+            prefix,
+            prefix_pos: 0,
+            prefix_len,
             inner: io,
         }
     }
 }
 
-impl<T> AsyncRead for Rewind<T>
+impl<T, const N: usize> AsyncRead for Rewind<T, N>
 where
     T: AsyncRead + Unpin,
 {
@@ -34,25 +36,18 @@ where
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        if let Some(mut prefix) = self.pre.take() {
-            // If there are no remaining bytes, let the bytes get dropped.
-            if !prefix.is_empty() {
-                let copy_len = cmp::min(prefix.len(), buf.remaining());
-                buf.put_slice(&prefix.split_to(copy_len));
-                // Put back what's left
-                if !prefix.is_empty() {
-                    self.pre = Some(prefix);
-                }
-
-                return Poll::Ready(Ok(()));
-            }
+        if self.prefix_pos < self.prefix_len {
+            let copy_len = cmp::min(self.prefix_len - self.prefix_pos, buf.remaining());
+            buf.put_slice(&self.prefix[self.prefix_pos..(self.prefix_pos + copy_len)]);
+            self.prefix_pos += copy_len;
+            return Poll::Ready(Ok(()));
         }
 
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
 
-impl<T> AsyncWrite for Rewind<T>
+impl<T, const N: usize> AsyncWrite for Rewind<T, N>
 where
     T: AsyncWrite + Unpin,
 {
