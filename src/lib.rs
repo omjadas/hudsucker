@@ -56,6 +56,10 @@ pub use error::Error;
 pub use noop::*;
 pub use proxy::*;
 
+/// When present in request extensions, the `Host` header will not be removed during normalization.
+#[derive(Debug, Clone, Copy)]
+pub struct PreserveHost;
+
 /// Enum representing either an HTTP request or response.
 #[derive(Debug)]
 pub enum RequestOrResponse {
