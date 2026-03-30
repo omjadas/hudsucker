@@ -380,8 +380,6 @@ fn spawn_message_forwarder(
 
 #[instrument(skip_all)]
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
-    // Hyper will automatically add a Host header if needed.
-    // If PreserveHost is set in extensions, keep the original Host header.
     if req.extensions().get::<crate::PreserveHost>().is_none() {
         req.headers_mut().remove(hyper::header::HOST);
     }
