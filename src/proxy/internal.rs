@@ -381,7 +381,10 @@ fn spawn_message_forwarder(
 #[instrument(skip_all)]
 fn normalize_request<T>(mut req: Request<T>) -> Request<T> {
     // Hyper will automatically add a Host header if needed.
-    req.headers_mut().remove(hyper::header::HOST);
+    // If PreserveHost is set in extensions, keep the original Host header.
+    if req.extensions().get::<crate::PreserveHost>().is_none() {
+        req.headers_mut().remove(hyper::header::HOST);
+    }
 
     // HTTP/2 supports multiple cookie headers, but HTTP/1.x only supports one.
     if let Entry::Occupied(mut cookies) = req.headers_mut().entry(hyper::header::COOKIE) {
@@ -443,6 +446,23 @@ mod tests {
             let req = normalize_request(req);
 
             assert_eq!(req.headers().get(hyper::header::HOST), None);
+        }
+
+        #[test]
+        fn preserves_host_header_with_extension() {
+            let mut req = Request::builder()
+                .uri("http://localhost:3000/")
+                .header(hyper::header::HOST, "example.com")
+                .body(())
+                .unwrap();
+            req.extensions_mut().insert(crate::PreserveHost);
+
+            let req = normalize_request(req);
+
+            assert_eq!(
+                req.headers().get(hyper::header::HOST).unwrap(),
+                "example.com"
+            );
         }
 
         #[test]

@@ -49,6 +49,23 @@ pub use error::Error;
 pub use noop::*;
 pub use proxy::*;
 
+/// Insert into request extensions to prevent `normalize_request` from stripping
+/// the `Host` header. Useful for reverse proxies that need to forward the
+/// original `Host` to the upstream server.
+///
+/// ```
+/// use hudsucker::PreserveHost;
+/// use hyper::Request;
+///
+/// let mut req = Request::builder()
+///     .uri("http://localhost:3000/")
+///     .body(())
+///     .unwrap();
+/// req.extensions_mut().insert(PreserveHost);
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct PreserveHost;
+
 /// Enum representing either an HTTP request or response.
 #[derive(Debug)]
 pub enum RequestOrResponse {
