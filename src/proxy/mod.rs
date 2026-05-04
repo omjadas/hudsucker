@@ -17,7 +17,7 @@ use hyper_util::{
     server::conn::auto::Builder as ServerBuilder,
 };
 use internal::InternalProxy;
-use std::sync::Arc;
+use std::{error::Error as StdError, sync::Arc};
 use tokio::net::TcpListener;
 use tokio_graceful::Shutdown;
 use tokio_tungstenite::Connector;
@@ -137,7 +137,7 @@ where
                     let (tcp, client_addr) = match res {
                         Ok((tcp, client_addr)) => (tcp, client_addr),
                         Err(e) => {
-                            error!("Failed to accept incoming connection: {}", e);
+                            error!(error = &e as &dyn StdError, "Failed to accept incoming connection");
                             continue;
                         }
                     };
@@ -175,7 +175,7 @@ where
                                 conn.await
                             }
                         } {
-                            error!("Error serving connection: {}", err);
+                            error!(error = &err, "Error serving connection");
                         }
                     });
                 }

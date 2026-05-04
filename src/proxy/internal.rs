@@ -26,7 +26,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder as ServerBuilder,
 };
-use std::{convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{convert::Infallible, error::Error as StdError, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
@@ -155,7 +155,10 @@ where
                             let bytes_read = match upgraded.read(&mut buffer).await {
                                 Ok(bytes_read) => bytes_read,
                                 Err(e) => {
-                                    error!("Failed to read from upgraded connection: {}", e);
+                                    error!(
+                                        error = &e as &dyn StdError,
+                                        "Failed to read from upgraded connection"
+                                    );
                                     return;
                                 }
                             };
@@ -176,7 +179,7 @@ where
                                         )
                                         .await
                                     {
-                                        error!("WebSocket connect error: {}", e);
+                                        error!(error = &e, "WebSocket connect error");
                                     }
 
                                     return;
@@ -193,7 +196,10 @@ where
                                     {
                                         Ok(stream) => TokioIo::new(stream),
                                         Err(e) => {
-                                            error!("Failed to establish TLS connection: {}", e);
+                                            error!(
+                                                error = &e as &dyn StdError,
+                                                "Failed to establish TLS connection"
+                                            );
                                             return;
                                         }
                                     };
@@ -205,7 +211,7 @@ where
                                             .to_string()
                                             .starts_with("error shutting down connection")
                                         {
-                                            error!("HTTPS connect error: {}", e);
+                                            error!(error = &e, "HTTPS connect error");
                                         }
                                     }
 
@@ -221,7 +227,10 @@ where
                             let mut server = match TcpStream::connect(authority.as_ref()).await {
                                 Ok(server) => server,
                                 Err(e) => {
-                                    error!("Failed to connect to {}: {}", authority, e);
+                                    error!(
+                                        error = &e as &dyn StdError,
+                                        "Failed to connect to {}", authority
+                                    );
                                     return;
                                 }
                             };
@@ -229,10 +238,13 @@ where
                             if let Err(e) =
                                 tokio::io::copy_bidirectional(&mut upgraded, &mut server).await
                             {
-                                error!("Failed to tunnel to {}: {}", authority, e);
+                                error!(
+                                    error = &e as &dyn StdError,
+                                    "Failed to tunnel to {}", authority
+                                );
                             }
                         }
-                        Err(e) => error!("Upgrade error: {}", e),
+                        Err(e) => error!(error = &e as &dyn StdError, "Upgrade error"),
                     };
                 };
 
@@ -275,11 +287,14 @@ where
                     match websocket.await {
                         Ok(ws) => {
                             if let Err(e) = self.handle_websocket(ws, req).await {
-                                error!("Failed to handle WebSocket: {}", e);
+                                error!(error = &e as &dyn StdError, "Failed to handle WebSocket");
                             }
                         }
                         Err(e) => {
-                            error!("Failed to upgrade to WebSocket: {}", e);
+                            error!(
+                                error = &e as &dyn StdError,
+                                "Failed to upgrade to WebSocket"
+                            );
                         }
                     }
                 };

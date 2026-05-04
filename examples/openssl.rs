@@ -6,7 +6,7 @@ use hudsucker::{
     tokio_tungstenite::tungstenite::Message,
     *,
 };
-use std::net::SocketAddr;
+use std::{error::Error as StdError, net::SocketAddr};
 use tracing::*;
 
 async fn shutdown_signal() {
@@ -69,6 +69,6 @@ async fn main() {
         .expect("Failed to create proxy");
 
     if let Err(e) = proxy.start().await {
-        error!("{}", e);
+        error!(error = &e as &dyn StdError, "Failed to start proxy");
     }
 }

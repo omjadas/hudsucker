@@ -35,7 +35,7 @@ pub mod certificate_authority;
 
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use hyper::{Request, Response, StatusCode, Uri};
-use std::net::SocketAddr;
+use std::{error::Error as StdError, net::SocketAddr};
 use tokio_tungstenite::tungstenite::{self, Message};
 use tracing::error;
 
@@ -138,7 +138,7 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
         err: hyper_util::client::legacy::Error,
     ) -> impl Future<Output = Response<Body>> + Send {
         async move {
-            error!("Failed to forward request: {}", err);
+            error!(error = &err as &dyn StdError, "Failed to forward request");
             Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
                 .body(Body::empty())
@@ -180,16 +180,18 @@ pub trait WebSocketHandler: Clone + Send + Sync + 'static {
 
                         match sink.send(message).await {
                             Err(tungstenite::Error::ConnectionClosed) => (),
-                            Err(e) => error!("WebSocket send error: {}", e),
+                            Err(e) => {
+                                error!(error = &e as &dyn StdError, "WebSocket send error")
+                            }
                             _ => (),
                         }
                     }
                     Err(e) => {
-                        error!("WebSocket message error: {}", e);
+                        error!(error = &e as &dyn StdError, "WebSocket message error");
 
                         match sink.send(Message::Close(None)).await {
                             Err(tungstenite::Error::ConnectionClosed) => (),
-                            Err(e) => error!("WebSocket close error: {}", e),
+                            Err(e) => error!(error = &e as &dyn StdError, "WebSocket close error"),
                             _ => (),
                         };
 
