@@ -26,7 +26,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder as ServerBuilder,
 };
-use std::{convert::Infallible, error::Error as StdError, net::SocketAddr, sync::Arc};
+use std::{convert::Infallible, error::Error as StdError, io, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
 use tokio_rustls::TlsAcceptor;
 use tokio_tungstenite::{
@@ -41,6 +41,28 @@ fn bad_request() -> Response<Body> {
         .status(StatusCode::BAD_REQUEST)
         .body(Body::empty())
         .expect("Failed to build response")
+}
+
+fn error_chain_contains<E: StdError + 'static>(
+    err: &(dyn StdError + 'static),
+    f: impl Fn(&E) -> bool,
+) -> bool {
+    let mut source = Some(err);
+    while let Some(err) = source {
+        if err.downcast_ref::<E>().is_some_and(&f) {
+            return true;
+        }
+        source = err.source();
+    }
+    false
+}
+
+fn error_is_shutdown(err: &(dyn StdError + 'static)) -> bool {
+    error_chain_contains::<hyper::Error>(err, |err| err.is_shutdown())
+}
+
+fn error_is_unexpected_eof(err: &(dyn StdError + 'static)) -> bool {
+    error_chain_contains::<io::Error>(err, |err| err.kind() == io::ErrorKind::UnexpectedEof)
 }
 
 fn spawn_with_trace<T: Send + Sync + 'static>(
@@ -207,9 +229,8 @@ where
                                     if let Err(e) =
                                         self.serve_stream(stream, Scheme::HTTPS, authority).await
                                     {
-                                        if !e
-                                            .to_string()
-                                            .starts_with("error shutting down connection")
+                                        if !error_is_shutdown(e.as_ref())
+                                            && !error_is_unexpected_eof(e.as_ref())
                                         {
                                             error!(error = &e, "HTTPS connect error");
                                         }
