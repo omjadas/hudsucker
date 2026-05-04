@@ -1,7 +1,7 @@
 use crate::certificate_authority::{CACHE_TTL, CertificateAuthority, NOT_BEFORE_OFFSET, TTL_SECS};
 use http::uri::Authority;
 use moka::future::Cache;
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 use rcgen::{
     CertificateParams,
     DistinguishedName,
