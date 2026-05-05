@@ -2,7 +2,7 @@
 name = "hudsucker"
 version = "0.24.0"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.86.0"
 description = "MITM HTTP/S proxy"
 documentation = "https://docs.rs/hudsucker"
 readme = "README.md"
