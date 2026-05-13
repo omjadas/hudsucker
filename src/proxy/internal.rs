@@ -28,7 +28,7 @@ use hyper_util::{
 };
 use std::{convert::Infallible, error::Error as StdError, io, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{TlsAcceptor,LazyConfigAcceptor};
 use tokio_tungstenite::{
     Connector,
     WebSocketStream,
@@ -63,6 +63,21 @@ fn error_is_shutdown(err: &(dyn StdError + 'static)) -> bool {
 
 fn error_is_unexpected_eof(err: &(dyn StdError + 'static)) -> bool {
     error_chain_contains::<io::Error>(err, |err| err.kind() == io::ErrorKind::UnexpectedEof)
+}
+
+fn mitm_authority(server_name: Option<&str>, connect_authority: &Authority) -> Authority {
+    let Some(server_name) = server_name else {
+        return connect_authority.clone();
+    };
+
+    let authority = connect_authority
+        .port_u16()
+        .map(|port| format!("{server_name}:{port}"))
+        .unwrap_or_else(|| server_name.to_owned());
+
+    authority
+        .parse()
+        .unwrap_or_else(|_| connect_authority.clone())
 }
 
 fn spawn_with_trace<T: Send + Sync + 'static>(
@@ -206,16 +221,33 @@ where
 
                                     return;
                                 } else if buffer[..2] == *b"\x16\x03" {
+                                    let start = match LazyConfigAcceptor::new(
+                                        tokio_rustls::rustls::server::Acceptor::default(),
+                                        upgraded,
+                                    )
+                                    .await
+                                    {
+                                        Ok(start) => start,
+                                        Err(e) => {
+                                            error!(
+                                                error = &e as &dyn StdError,
+                                                "Failed to read TLS client hello"
+                                            );
+                                            return;
+                                        }
+                                    };
+                                    let tls_authority = mitm_authority(
+                                        start.client_hello().server_name(),
+                                        &authority,
+                                    );
+
                                     let server_config = self
                                         .ca
-                                        .gen_server_config(&authority)
+                                        .gen_server_config(&tls_authority)
                                         .instrument(info_span!("gen_server_config"))
                                         .await;
 
-                                    let stream = match TlsAcceptor::from(server_config)
-                                        .accept(upgraded)
-                                        .await
-                                    {
+                                    let stream = match start.into_stream(server_config).await {
                                         Ok(stream) => TokioIo::new(stream),
                                         Err(e) => {
                                             error!(
@@ -227,7 +259,7 @@ where
                                     };
 
                                     if let Err(e) =
-                                        self.serve_stream(stream, Scheme::HTTPS, authority).await
+                                        self.serve_stream(stream, Scheme::HTTPS, tls_authority).await
                                     {
                                         if !error_is_shutdown(e.as_ref())
                                             && !error_is_unexpected_eof(e.as_ref())
