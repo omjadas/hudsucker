@@ -245,12 +245,22 @@ where
                                 }
                             }
 
-                            let mut server = match TcpStream::connect(authority.as_ref()).await {
+                            // Some HTTP clients (notably bun/undici) emit CONNECT request-targets
+                            // where the port survives in `req.uri()` Display but not in
+                            // `req.uri().authority().as_str()`, leaving us with just the host.
+                            // Default to 443 when the port is absent so the raw tunnel can still
+                            // be established — virtually all CONNECT use is for HTTPS anyway.
+                            let connect_target = if authority.port_u16().is_some() {
+                                authority.as_str().to_owned()
+                            } else {
+                                format!("{}:443", authority.host())
+                            };
+                            let mut server = match TcpStream::connect(&connect_target).await {
                                 Ok(server) => server,
                                 Err(e) => {
                                     error!(
                                         error = &e as &dyn StdError,
-                                        "Failed to connect to {}", authority
+                                        "Failed to connect to {}", connect_target
                                     );
                                     return;
                                 }
