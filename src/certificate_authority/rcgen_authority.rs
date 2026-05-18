@@ -84,6 +84,10 @@ impl RcgenAuthority {
             Ia5String::try_from(authority.host()).expect("Failed to create Ia5String"),
         ));
 
+        // RFC 5280 §4.2.1.1: non-self-issued certs MUST carry AKI; strict
+        // OpenSSL builds reject the chain otherwise.
+        params.use_authority_key_identifier_extension = true;
+
         params
             .signed_by(self.issuer.key(), &self.issuer)
             .expect("Failed to sign certificate")
@@ -163,5 +167,21 @@ mod tests {
 
         assert_ne!(cert1.raw_serial(), cert3.raw_serial());
         assert_ne!(cert2.raw_serial(), cert4.raw_serial());
+    }
+
+    #[test]
+    fn leaf_carries_authority_key_identifier() {
+        use x509_parser::extensions::ParsedExtension;
+
+        let ca = build_ca(0);
+        let der = ca.gen_cert(&Authority::from_static("example.com"));
+        let (_, cert) = x509_parser::parse_x509_certificate(&der).unwrap();
+        assert!(
+            cert.iter_extensions().any(|ext| matches!(
+                ext.parsed_extension(),
+                ParsedExtension::AuthorityKeyIdentifier(_)
+            )),
+            "leaf cert must carry an Authority Key Identifier extension",
+        );
     }
 }
