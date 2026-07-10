@@ -12,7 +12,7 @@ use openssl::{
         X509,
         X509Builder,
         X509NameBuilder,
-        extension::{AuthorityKeyIdentifier, SubjectAlternativeName},
+        extension::{AuthorityKeyIdentifier, ExtendedKeyUsage, KeyUsage, SubjectAlternativeName},
     },
 };
 use std::{
@@ -114,6 +114,12 @@ impl OpensslAuthority {
             .dns(authority.host())
             .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
         x509_builder.append_extension(alternative_name)?;
+
+        let key_usage = KeyUsage::new().critical().digital_signature().build()?;
+        x509_builder.append_extension(key_usage)?;
+
+        let extended_key_usage = ExtendedKeyUsage::new().server_auth().build()?;
+        x509_builder.append_extension(extended_key_usage)?;
 
         let authority_key_identifier = AuthorityKeyIdentifier::new()
             .keyid(true)

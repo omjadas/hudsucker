@@ -6,8 +6,10 @@ use rcgen::{
     CertificateParams,
     DistinguishedName,
     DnType,
+    ExtendedKeyUsagePurpose,
     Issuer,
     KeyPair,
+    KeyUsagePurpose,
     SanType,
     string::Ia5String,
 };
@@ -84,8 +86,8 @@ impl RcgenAuthority {
             Ia5String::try_from(authority.host()).expect("Failed to create Ia5String"),
         ));
 
-        // RFC 5280 §4.2.1.1: non-self-issued certs MUST carry AKI; strict
-        // OpenSSL builds reject the chain otherwise.
+        params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
+        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
         params.use_authority_key_identifier_extension = true;
 
         params
