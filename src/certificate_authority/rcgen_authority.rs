@@ -170,18 +170,16 @@ mod tests {
     }
 
     #[test]
-    fn leaf_carries_authority_key_identifier() {
-        use x509_parser::extensions::ParsedExtension;
+    fn authority_key_identifier() {
+        use x509_parser::oid_registry::OID_X509_EXT_AUTHORITY_KEY_IDENTIFIER;
 
         let ca = build_ca(0);
         let der = ca.gen_cert(&Authority::from_static("example.com"));
         let (_, cert) = x509_parser::parse_x509_certificate(&der).unwrap();
         assert!(
-            cert.iter_extensions().any(|ext| matches!(
-                ext.parsed_extension(),
-                ParsedExtension::AuthorityKeyIdentifier(_)
-            )),
-            "leaf cert must carry an Authority Key Identifier extension",
+            cert.get_extension_unique(&OID_X509_EXT_AUTHORITY_KEY_IDENTIFIER)
+                .unwrap()
+                .is_some()
         );
     }
 }

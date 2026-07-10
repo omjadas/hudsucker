@@ -8,7 +8,12 @@ use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private},
     rand,
-    x509::{X509, X509Builder, X509NameBuilder, extension::SubjectAlternativeName},
+    x509::{
+        X509,
+        X509Builder,
+        X509NameBuilder,
+        extension::{AuthorityKeyIdentifier, SubjectAlternativeName},
+    },
 };
 use std::{
     sync::Arc,
@@ -110,6 +115,11 @@ impl OpensslAuthority {
             .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
         x509_builder.append_extension(alternative_name)?;
 
+        let authority_key_identifier = AuthorityKeyIdentifier::new()
+            .keyid(true)
+            .build(&x509_builder.x509v3_context(Some(&self.ca_cert), None))?;
+        x509_builder.append_extension(authority_key_identifier)?;
+
         let mut serial_number = [0; 16];
         rand::rand_bytes(&mut serial_number)?;
 
@@ -204,5 +214,19 @@ mod tests {
 
         assert_ne!(cert1.raw_serial(), cert3.raw_serial());
         assert_ne!(cert2.raw_serial(), cert4.raw_serial());
+    }
+
+    #[test]
+    fn authority_key_identifier() {
+        use x509_parser::oid_registry::OID_X509_EXT_AUTHORITY_KEY_IDENTIFIER;
+
+        let ca = build_ca(0);
+        let der = ca.gen_cert(&Authority::from_static("example.com")).unwrap();
+        let (_, cert) = x509_parser::parse_x509_certificate(&der).unwrap();
+        assert!(
+            cert.get_extension_unique(&OID_X509_EXT_AUTHORITY_KEY_IDENTIFIER)
+                .unwrap()
+                .is_some()
+        );
     }
 }
