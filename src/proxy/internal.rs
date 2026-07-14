@@ -260,7 +260,14 @@ where
 
                                     let server_config = self
                                         .ca
-                                        .gen_server_config(&authority)
+                                        .gen_server_config(
+                                            start
+                                                .client_hello()
+                                                .server_name()
+                                                .and_then(|name| Authority::try_from(name).ok())
+                                                .as_ref()
+                                                .unwrap_or(&authority),
+                                        )
                                         .instrument(info_span!("gen_server_config"))
                                         .await;
 
