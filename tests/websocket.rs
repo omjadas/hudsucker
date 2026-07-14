@@ -135,8 +135,8 @@ async fn https_native_tls() {
 }
 
 #[tokio::test]
-async fn without_intercept() {
-    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_intercept(
+async fn without_connect_intercept() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_connect_intercept(
         build_ca(),
         common::http_connector(),
         common::plain_websocket_connector(),
@@ -158,6 +158,43 @@ async fn without_intercept() {
     let (mut ws, _) = tokio_tungstenite::client_async(format!("ws://{}", server_addr), stream)
         .await
         .unwrap();
+
+    ws.send(Message::Text(HELLO)).await.unwrap();
+
+    let msg = ws.next().await.unwrap().unwrap();
+
+    assert_eq!(msg.into_text().unwrap(), common::WORLD);
+    assert_eq!(handler.message_counter.load(Ordering::Relaxed), 0);
+
+    stop_server.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn without_intercept_tls() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_tls_intercept(
+        build_ca(),
+        common::rustls_http_connector(),
+        common::rustls_websocket_connector(),
+    )
+    .await
+    .unwrap();
+
+    let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
+
+    let mut stream = TcpStream::connect(proxy_addr).await.unwrap();
+    http_connect_tokio(&mut stream, "localhost", server_addr.port())
+        .await
+        .unwrap();
+
+    let (mut ws, _) = tokio_tungstenite::client_async_tls_with_config(
+        format!("wss://localhost:{}", server_addr.port()),
+        stream,
+        None,
+        Some(common::rustls_websocket_connector()),
+    )
+    .await
+    .unwrap();
 
     ws.send(Message::Text(HELLO)).await.unwrap();
 

@@ -6,7 +6,8 @@ use crate::{
     WebSocketHandler,
     body::Body,
     certificate_authority::CertificateAuthority,
-    rewind::Rewind,
+    rewind::{ArrayPrefix, Rewind},
+    tee::Tee,
 };
 use futures::{Sink, Stream, StreamExt};
 use http::uri::{Authority, Scheme};
@@ -28,7 +29,7 @@ use hyper_util::{
 };
 use std::{convert::Infallible, error::Error as StdError, io, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinHandle};
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{LazyConfigAcceptor, StartHandshake};
 use tokio_tungstenite::{
     Connector,
     WebSocketStream,
@@ -185,11 +186,12 @@ where
                                 }
                             };
 
-                            let mut upgraded = Rewind::new(upgraded, buffer, bytes_read);
+                            let prefix = ArrayPrefix::new(buffer, bytes_read);
+                            let mut upgraded = Rewind::new(prefix, upgraded);
 
                             if self
                                 .http_handler
-                                .should_intercept(&self.context(), &req)
+                                .should_intercept_connect(&self.context(), &req)
                                 .await
                             {
                                 if buffer == *b"GET " {
@@ -206,15 +208,68 @@ where
 
                                     return;
                                 } else if buffer[..2] == *b"\x16\x03" {
+                                    let upgraded = Tee::new(upgraded);
+
+                                    let start = match LazyConfigAcceptor::new(
+                                        tokio_rustls::rustls::server::Acceptor::default(),
+                                        upgraded,
+                                    )
+                                    .await
+                                    {
+                                        Ok(start) => start,
+                                        Err(e) => {
+                                            error!(
+                                                error = &e as &dyn StdError,
+                                                "Failed to read TLS client hello"
+                                            );
+                                            return;
+                                        }
+                                    };
+
+                                    if !self
+                                        .http_handler
+                                        .should_intercept_tls(&self.context(), start.client_hello())
+                                        .await
+                                    {
+                                        let mut server =
+                                            match TcpStream::connect(authority.as_ref()).await {
+                                                Ok(server) => server,
+                                                Err(e) => {
+                                                    error!(
+                                                        error = &e as &dyn StdError,
+                                                        "Failed to connect to {}", authority
+                                                    );
+                                                    return;
+                                                }
+                                            };
+
+                                        if let Err(e) = tokio::io::copy_bidirectional(
+                                            &mut start.io.rewind(),
+                                            &mut server,
+                                        )
+                                        .await
+                                        {
+                                            error!(
+                                                error = &e as &dyn StdError,
+                                                "Failed to tunnel to {}", authority
+                                            );
+                                        }
+
+                                        return;
+                                    }
+
                                     let server_config = self
                                         .ca
                                         .gen_server_config(&authority)
                                         .instrument(info_span!("gen_server_config"))
                                         .await;
 
-                                    let stream = match TlsAcceptor::from(server_config)
-                                        .accept(upgraded)
-                                        .await
+                                    let stream = match StartHandshake::from_parts(
+                                        start.accepted,
+                                        start.io.into_inner(),
+                                    )
+                                    .into_stream(server_config)
+                                    .await
                                     {
                                         Ok(stream) => TokioIo::new(stream),
                                         Err(e) => {

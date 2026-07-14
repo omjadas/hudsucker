@@ -227,10 +227,10 @@ pub async fn start_proxy<C>(
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    _start_proxy(ca, http_connector, websocket_connector, true).await
+    _start_proxy(ca, http_connector, websocket_connector, true, true).await
 }
 
-pub async fn start_proxy_without_intercept<C>(
+pub async fn start_proxy_without_connect_intercept<C>(
     ca: impl CertificateAuthority,
     http_connector: C,
     websocket_connector: tokio_tungstenite::Connector,
@@ -238,14 +238,26 @@ pub async fn start_proxy_without_intercept<C>(
 where
     C: Connect + Clone + Send + Sync + 'static,
 {
-    _start_proxy(ca, http_connector, websocket_connector, false).await
+    _start_proxy(ca, http_connector, websocket_connector, false, true).await
+}
+
+pub async fn start_proxy_without_tls_intercept<C>(
+    ca: impl CertificateAuthority,
+    http_connector: C,
+    websocket_connector: tokio_tungstenite::Connector,
+) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
+where
+    C: Connect + Clone + Send + Sync + 'static,
+{
+    _start_proxy(ca, http_connector, websocket_connector, true, false).await
 }
 
 async fn _start_proxy<C>(
     ca: impl CertificateAuthority,
     http_connector: C,
     websocket_connector: tokio_tungstenite::Connector,
-    should_intercept: bool,
+    should_intercept_connect: bool,
+    should_intercept_tls: bool,
 ) -> Result<(SocketAddr, TestHandler, Sender<()>), Box<dyn std::error::Error>>
 where
     C: Connect + Clone + Send + Sync + 'static,
@@ -254,7 +266,7 @@ where
     let addr = listener.local_addr()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
-    let handler = TestHandler::new(should_intercept);
+    let handler = TestHandler::new(should_intercept_connect, should_intercept_tls);
 
     let proxy = Proxy::builder()
         .with_listener(listener)
@@ -313,16 +325,18 @@ pub struct TestHandler {
     pub request_counter: Arc<AtomicUsize>,
     pub response_counter: Arc<AtomicUsize>,
     pub message_counter: Arc<AtomicUsize>,
-    pub should_intercept: bool,
+    pub should_intercept_connect: bool,
+    pub should_intercept_tls: bool,
 }
 
 impl TestHandler {
-    pub fn new(should_intercept: bool) -> Self {
+    pub fn new(should_intercept_connect: bool, should_intercept_tls: bool) -> Self {
         Self {
             request_counter: Arc::new(AtomicUsize::new(0)),
             response_counter: Arc::new(AtomicUsize::new(0)),
             message_counter: Arc::new(AtomicUsize::new(0)),
-            should_intercept,
+            should_intercept_connect,
+            should_intercept_tls,
         }
     }
 }
@@ -343,8 +357,16 @@ impl HttpHandler for TestHandler {
         decode_response(res).unwrap()
     }
 
-    async fn should_intercept(&mut self, _ctx: &HttpContext, _req: &Request<Body>) -> bool {
-        self.should_intercept
+    async fn should_intercept_connect(&mut self, _ctx: &HttpContext, _req: &Request<Body>) -> bool {
+        self.should_intercept_connect
+    }
+
+    async fn should_intercept_tls(
+        &mut self,
+        _ctx: &HttpContext,
+        _client_hello: rustls::server::ClientHello<'_>,
+    ) -> bool {
+        self.should_intercept_tls
     }
 }
 

@@ -78,8 +78,35 @@ async fn https_native_tls() {
 }
 
 #[tokio::test]
-async fn without_intercept() {
-    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_intercept(
+async fn without_connect_intercept() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_connect_intercept(
+        build_ca(),
+        common::http_connector(),
+        common::plain_websocket_connector(),
+    )
+    .await
+    .unwrap();
+
+    let (server_addr, stop_server) = common::start_https_server(build_ca()).await.unwrap();
+    let client = common::build_client(&proxy_addr.to_string());
+
+    let res = client
+        .get(format!("https://localhost:{}/hello", server_addr.port()))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    assert_eq!(handler.request_counter.load(Ordering::Relaxed), 1);
+    assert_eq!(handler.response_counter.load(Ordering::Relaxed), 0);
+
+    stop_server.send(()).unwrap();
+    stop_proxy.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn without_intercept_tls() {
+    let (proxy_addr, handler, stop_proxy) = common::start_proxy_without_tls_intercept(
         build_ca(),
         common::http_connector(),
         common::plain_websocket_connector(),

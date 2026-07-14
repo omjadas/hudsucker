@@ -30,6 +30,7 @@ mod error;
 mod noop;
 mod proxy;
 mod rewind;
+mod tee;
 
 pub mod certificate_authority;
 
@@ -148,10 +149,20 @@ pub trait HttpHandler: Clone + Send + Sync + 'static {
 
     /// Whether a CONNECT request should be intercepted. Defaults to `true` for
     /// all requests.
-    fn should_intercept(
+    fn should_intercept_connect(
         &mut self,
         _ctx: &HttpContext,
         _req: &Request<Body>,
+    ) -> impl Future<Output = bool> + Send {
+        async { true }
+    }
+
+    /// Whether a TLS connection should be intercepted. Defaults to `true` for
+    /// all connections.
+    fn should_intercept_tls(
+        &mut self,
+        _ctx: &HttpContext,
+        _client_hello: tokio_rustls::rustls::server::ClientHello<'_>,
     ) -> impl Future<Output = bool> + Send {
         async { true }
     }
