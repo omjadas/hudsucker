@@ -17,8 +17,8 @@ use hyper_util::{
     server::conn::auto::Builder as ServerBuilder,
 };
 use internal::InternalProxy;
-use std::{error::Error as StdError, sync::Arc};
-use tokio::net::TcpListener;
+use std::{error::Error as StdError, num::NonZeroUsize, sync::Arc};
+use tokio::{net::TcpListener, sync::Semaphore};
 use tokio_graceful::Shutdown;
 use tokio_tungstenite::Connector;
 use tracing::error;
@@ -73,6 +73,7 @@ use tracing::error;
 pub struct Proxy<C, CA, H, W, F> {
     al: AddrOrListener,
     ca: Arc<CA>,
+    max_concurrent_connections: Option<NonZeroUsize>,
     http_connector: C,
     client: Option<ClientBuilder>,
     http_handler: H,
@@ -130,8 +131,23 @@ where
 
         let shutdown = Shutdown::new(self.graceful_shutdown);
         let guard = shutdown.guard_weak();
+        let connection_permits = self
+            .max_concurrent_connections
+            .map(|maximum| Arc::new(Semaphore::new(maximum.get())));
 
         loop {
+            let connection_permit = if let Some(permits) = &connection_permits {
+                let permit = tokio::select! {
+                    permit = Arc::clone(permits).acquire_owned() => permit,
+                    _ = guard.cancelled() => break,
+                };
+                let Ok(permit) = permit else {
+                    break;
+                };
+                Some(permit)
+            } else {
+                None
+            };
             tokio::select! {
                 res = listener.accept() => {
                     let (tcp, client_addr) = match res {
@@ -150,6 +166,7 @@ where
                     let websocket_connector = self.websocket_connector.clone();
 
                     shutdown.spawn_task_fn(move |guard| async move {
+                        let _connection_permit = connection_permit;
                         let conn = server.serve_connection_with_upgrades(
                             TokioIo::new(tcp),
                             service_fn(|req| {

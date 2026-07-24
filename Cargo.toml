@@ -34,7 +34,7 @@ rand = { version = "0.10.2", optional = true }
 rcgen = { version = "0.14.0", features = ["x509-parser"], optional = true }
 thiserror = "2.0.7"
 time = { version = "0.3.35", optional = true }
-tokio = { version = "1.24.2", features = ["macros", "rt"] }
+tokio = { version = "1.24.2", features = ["macros", "rt", "sync"] }
 tokio-graceful = "0.2.0"
 tokio-native-tls = { version = "0.3.1", optional = true }
 tokio-rustls = { version = "0.26.3", features = ["logging", "tls12"] }
