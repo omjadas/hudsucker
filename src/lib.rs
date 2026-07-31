@@ -8,6 +8,8 @@
 //!
 //! ## Features
 //!
+//! - `aws-lc-rs`: Uses AWS-LC as the rustls cryptography provider (enabled by
+//!   default).
 //! - `decoder`: Enables [`decode_request`] and [`decode_response`] helpers
 //!   (enabled by default).
 //! - `full`: Enables all features.
@@ -19,6 +21,8 @@
 //! - `rcgen-ca`: Enables
 //!   [`RcgenAuthority`](certificate_authority::RcgenAuthority) (enabled by
 //!   default).
+//! - `ring`: Enables ring as a rustls cryptography provider. Disable default
+//!   features to use it without AWS-LC.
 //! - `rustls-client`: Enables
 //!   [`ProxyBuilder::with_rustls_connector`](builder::ProxyBuilder::with_rustls_connector)
 //!   (enabled by default).
