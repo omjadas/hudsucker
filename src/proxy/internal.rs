@@ -208,11 +208,9 @@ where
 
                                     return;
                                 } else if buffer[..2] == *b"\x16\x03" {
-                                    let upgraded = Tee::new(upgraded);
-
                                     let start = match LazyConfigAcceptor::new(
                                         tokio_rustls::rustls::server::Acceptor::default(),
-                                        upgraded,
+                                        Tee::new(upgraded),
                                     )
                                     .await
                                     {

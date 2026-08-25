@@ -1,40 +1,15 @@
 use crate::{Body, Error};
 use async_compression::tokio::bufread::{BrotliDecoder, GzipDecoder, ZlibDecoder, ZstdDecoder};
 use bstr::ByteSlice;
-use futures::Stream;
+use futures::TryStreamExt;
+use http_body_util::BodyExt;
 use hyper::{
     Request,
     Response,
-    body::{Body as HttpBody, Bytes},
     header::{CONTENT_ENCODING, CONTENT_LENGTH, HeaderMap, HeaderValue},
-};
-use std::{
-    io,
-    pin::Pin,
-    task::{Context, Poll},
 };
 use tokio::io::{AsyncBufRead, AsyncRead, BufReader};
 use tokio_util::io::{ReaderStream, StreamReader};
-
-struct IoStream<T>(T);
-
-impl<T: HttpBody<Data = Bytes, Error = Error> + Unpin> Stream for IoStream<T> {
-    type Item = Result<Bytes, io::Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        loop {
-            return match futures::ready!(Pin::new(&mut self.0).poll_frame(cx)) {
-                Some(Ok(frame)) => match frame.into_data() {
-                    Ok(buf) => Poll::Ready(Some(Ok(buf))),
-                    Err(_) => continue,
-                },
-                Some(Err(Error::Io(err))) => Poll::Ready(Some(Err(err))),
-                Some(Err(err)) => Poll::Ready(Some(Err(io::Error::other(err)))),
-                None => Poll::Ready(None),
-            };
-        }
-    }
-}
 
 fn decode(
     encoding: &[u8],
@@ -61,7 +36,10 @@ impl Decoder<Body> {
         }
 
         Ok(Self::Decoder(match self {
-            Self::Body(body) => decode(encoding, StreamReader::new(IoStream(body))),
+            Self::Body(body) => decode(
+                encoding,
+                StreamReader::new(body.into_data_stream().map_err(Error::into_io)),
+            ),
             Self::Decoder(decoder) => decode(encoding, BufReader::new(decoder)),
         }?))
     }
@@ -211,6 +189,7 @@ pub fn decode_response(mut res: Response<Body>) -> Result<Response<Body>, Error>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::body::{Body as HttpBody, Bytes};
 
     mod extract_encodings {
         use super::*;
@@ -273,7 +252,6 @@ mod tests {
     where
         H::Error: std::fmt::Debug,
     {
-        use http_body_util::BodyExt;
         body.collect().await.unwrap().to_bytes()
     }
 

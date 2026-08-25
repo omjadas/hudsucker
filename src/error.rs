@@ -15,3 +15,12 @@ pub enum Error {
     #[error("unknown error")]
     Unknown,
 }
+
+impl Error {
+    pub(crate) fn into_io(self) -> std::io::Error {
+        match self {
+            Error::Io(e) => e,
+            _ => std::io::Error::other(self),
+        }
+    }
+}
