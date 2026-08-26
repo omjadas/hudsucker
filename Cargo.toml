@@ -37,7 +37,7 @@ time = { version = "0.3.35", optional = true }
 tokio = { version = "1.24.2", features = ["macros", "rt"] }
 tokio-graceful = "0.2.0"
 tokio-native-tls = { version = "0.3.1", optional = true }
-tokio-rustls = { version = "0.26.3", features = ["logging", "tls12"] }
+tokio-rustls = { version = "0.26.3", default-features = false, features = ["logging", "tls12"] }
 tokio-tungstenite = "0.30.0"
 tokio-util = { version = "0.7.1", features = ["io"], optional = true }
 tracing = { version = "0.1.35", features = ["log"] }
@@ -55,12 +55,14 @@ x509-parser = "0.18.0"
 
 [features]
 decoder = ["dep:async-compression", "dep:tokio-util", "tokio/io-util"]
-default = ["decoder", "rcgen-ca", "rustls-client"]
-full = ["decoder", "http2", "native-tls-client", "openssl-ca", "rcgen-ca", "rustls-client"]
+aws-lc-rs = ["hyper-rustls?/aws-lc-rs", "tokio-rustls/aws_lc_rs"]
+default = ["aws-lc-rs", "decoder", "rcgen-ca", "rustls-client"]
+full = ["aws-lc-rs", "decoder", "http2", "native-tls-client", "openssl-ca", "rcgen-ca", "rustls-client"]
 http2 = ["hyper-util/http2", "hyper-rustls?/http2"]
 native-tls-client = ["dep:hyper-tls", "dep:tokio-native-tls", "tokio-tungstenite/native-tls"]
 openssl-ca = ["dep:openssl", "dep:moka"]
 rcgen-ca = ["dep:rcgen", "dep:moka", "dep:time", "dep:rand"]
+ring = ["hyper-rustls?/ring", "tokio-rustls/ring"]
 rustls-client = ["dep:hyper-rustls", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [[example]]
