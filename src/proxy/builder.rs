@@ -13,6 +13,7 @@ use hyper_util::{
 use std::{
     future::{Pending, pending},
     net::SocketAddr,
+    num::NonZeroUsize,
     sync::Arc,
 };
 use thiserror::Error;
@@ -141,6 +142,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
                 return ProxyBuilder(WantsHandlers {
                     al: self.0.al,
                     ca: self.0.ca,
+                    max_concurrent_connections: None,
                     http_connector: Err(Error::from(e)),
                     client: None,
                     http_handler: NoopHandler::new(),
@@ -165,6 +167,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: None,
             http_connector: Ok(https),
             client: None,
             http_handler: NoopHandler::new(),
@@ -189,6 +192,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
                 return ProxyBuilder(WantsHandlers {
                     al: self.0.al,
                     ca: self.0.ca,
+                    max_concurrent_connections: None,
                     http_connector: Err(Error::from(e)),
                     client: None,
                     http_handler: NoopHandler::new(),
@@ -206,6 +210,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: None,
             http_connector: Ok(https),
             client: None,
             http_handler: NoopHandler::new(),
@@ -227,6 +232,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: None,
             http_connector: Ok(connector),
             client: None,
             http_handler: NoopHandler::new(),
@@ -242,6 +248,7 @@ impl<CA> ProxyBuilder<WantsClient<CA>> {
 pub struct WantsHandlers<CA, C, H, W, F> {
     al: AddrOrListener,
     ca: CA,
+    max_concurrent_connections: Option<NonZeroUsize>,
     http_connector: Result<C, Error>,
     client: Option<ClientBuilder>,
     http_handler: H,
@@ -260,6 +267,7 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: self.0.max_concurrent_connections,
             http_connector: self.0.http_connector,
             client: self.0.client,
             http_handler,
@@ -278,6 +286,7 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: self.0.max_concurrent_connections,
             http_connector: self.0.http_connector,
             client: self.0.client,
             http_handler: self.0.http_handler,
@@ -312,6 +321,18 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         })
     }
 
+    /// Set the maximum number of concurrently accepted client connections.
+    ///
+    /// The proxy waits for a connection slot before accepting another socket.
+    /// This bounds the file descriptors held by the process and applies
+    /// backpressure through the listener backlog.
+    pub fn with_max_concurrent_connections(self, max_concurrent_connections: NonZeroUsize) -> Self {
+        ProxyBuilder(WantsHandlers {
+            max_concurrent_connections: Some(max_concurrent_connections),
+            ..self.0
+        })
+    }
+
     /// Set a future that when ready will gracefully shutdown the proxy server.
     pub fn with_graceful_shutdown<F2: Future<Output = ()> + Send + 'static>(
         self,
@@ -320,6 +341,7 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         ProxyBuilder(WantsHandlers {
             al: self.0.al,
             ca: self.0.ca,
+            max_concurrent_connections: self.0.max_concurrent_connections,
             http_connector: self.0.http_connector,
             client: self.0.client,
             http_handler: self.0.http_handler,
@@ -338,6 +360,7 @@ impl<CA, C, H, W, F> ProxyBuilder<WantsHandlers<CA, C, H, W, F>> {
         Ok(Proxy {
             al: self.0.al,
             ca: Arc::new(self.0.ca),
+            max_concurrent_connections: self.0.max_concurrent_connections,
             http_connector: self.0.http_connector?,
             client: self.0.client,
             http_handler: self.0.http_handler,
