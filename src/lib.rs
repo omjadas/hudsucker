@@ -83,6 +83,7 @@ impl From<Response<Body>> for RequestOrResponse {
 #[non_exhaustive]
 pub struct HttpContext {
     /// Address of the client that is sending the request.
+    /// Unix domain socket clients use `0.0.0.0:0`.
     pub client_addr: SocketAddr,
 }
 
@@ -91,7 +92,7 @@ pub struct HttpContext {
 pub enum WebSocketContext {
     #[non_exhaustive]
     ClientToServer {
-        /// Address of the client.
+        /// Address of the client. Unix domain socket clients use `0.0.0.0:0`.
         src: SocketAddr,
         /// URI of the server.
         dst: Uri,
@@ -100,7 +101,7 @@ pub enum WebSocketContext {
     ServerToClient {
         /// URI of the server.
         src: Uri,
-        /// Address of the client.
+        /// Address of the client. Unix domain socket clients use `0.0.0.0:0`.
         dst: SocketAddr,
     },
 }

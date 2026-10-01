@@ -106,3 +106,7 @@ required-features = ["rcgen-ca", "rustls-client"]
 lto = true
 debug = true
 codegen-units = 1
+
+[[test]]
+name = "unix_listener"
+required-features = ["decoder", "rcgen-ca", "native-tls-client", "rustls-client"]

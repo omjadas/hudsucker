@@ -1,4 +1,5 @@
 mod internal;
+mod listener;
 
 pub mod builder;
 
@@ -17,6 +18,7 @@ use hyper_util::{
     server::conn::auto::Builder as ServerBuilder,
 };
 use internal::InternalProxy;
+use listener::Listener;
 use std::{error::Error as StdError, sync::Arc};
 use tokio::net::TcpListener;
 use tokio_graceful::Shutdown;
@@ -123,70 +125,83 @@ where
             builder
         });
 
-        let listener = match self.al {
-            AddrOrListener::Addr(addr) => TcpListener::bind(addr).await?,
-            AddrOrListener::Listener(listener) => listener,
+        let proxy = InternalProxy {
+            ca: self.ca,
+            client,
+            server,
+            http_handler: self.http_handler,
+            websocket_handler: self.websocket_handler,
+            websocket_connector: self.websocket_connector,
+            client_addr: ([0, 0, 0, 0], 0).into(),
         };
-
-        let shutdown = Shutdown::new(self.graceful_shutdown);
-        let guard = shutdown.guard_weak();
-
-        loop {
-            tokio::select! {
-                res = listener.accept() => {
-                    let (tcp, client_addr) = match res {
-                        Ok((tcp, client_addr)) => (tcp, client_addr),
-                        Err(e) => {
-                            error!(error = &e as &dyn StdError, "Failed to accept incoming connection");
-                            continue;
-                        }
-                    };
-
-                    let client = client.clone();
-                    let server = server.clone();
-                    let ca = Arc::clone(&self.ca);
-                    let http_handler = self.http_handler.clone();
-                    let websocket_handler = self.websocket_handler.clone();
-                    let websocket_connector = self.websocket_connector.clone();
-
-                    shutdown.spawn_task_fn(move |guard| async move {
-                        let conn = server.serve_connection_with_upgrades(
-                            TokioIo::new(tcp),
-                            service_fn(|req| {
-                                InternalProxy {
-                                    ca: Arc::clone(&ca),
-                                    client: client.clone(),
-                                    server: server.clone(),
-                                    http_handler: http_handler.clone(),
-                                    websocket_handler: websocket_handler.clone(),
-                                    websocket_connector: websocket_connector.clone(),
-                                    client_addr,
-                                }
-                                .proxy(req)
-                            }),
-                        );
-
-                        let mut conn = std::pin::pin!(conn);
-
-                        if let Err(err) = tokio::select! {
-                            conn = conn.as_mut() => conn,
-                            _ = guard.cancelled() => {
-                                conn.as_mut().graceful_shutdown();
-                                conn.await
-                            }
-                        } {
-                            error!(error = &err, "Error serving connection");
-                        }
-                    });
-                }
-                _ = guard.cancelled() => {
-                    break;
-                }
+        match self.al {
+            AddrOrListener::Addr(addr) => {
+                serve_listener(
+                    TcpListener::bind(addr).await?,
+                    proxy,
+                    self.graceful_shutdown,
+                )
+                .await
+            }
+            AddrOrListener::Listener(listener) => {
+                serve_listener(listener, proxy, self.graceful_shutdown).await
+            }
+            #[cfg(unix)]
+            AddrOrListener::UnixListener(listener) => {
+                serve_listener(listener, proxy, self.graceful_shutdown).await
             }
         }
-
-        shutdown.shutdown().await;
-
-        Ok(())
     }
+}
+
+async fn serve_listener<L, C, CA, H, W, F>(
+    listener: L,
+    proxy: InternalProxy<C, CA, H, W>,
+    graceful_shutdown: F,
+) -> Result<(), Error>
+where
+    L: Listener,
+    C: Connect + Clone + Send + Sync + 'static,
+    CA: CertificateAuthority,
+    H: HttpHandler,
+    W: WebSocketHandler,
+    F: Future<Output = ()> + Send + 'static,
+{
+    let shutdown = Shutdown::new(graceful_shutdown);
+    let guard = shutdown.guard_weak();
+    loop {
+        tokio::select! {
+            res = listener.accept() => {
+                let (stream, client_addr) = match res {
+                    Ok(connection) => connection,
+                    Err(e) => {
+                        error!(error = &e as &dyn StdError, "Failed to accept incoming connection");
+                        continue;
+                    }
+                };
+                let mut proxy = proxy.clone();
+                proxy.client_addr = client_addr;
+                let server = proxy.server.clone();
+                shutdown.spawn_task_fn(move |guard| async move {
+                    let conn = server.serve_connection_with_upgrades(
+                        TokioIo::new(stream),
+                        service_fn(move |req| proxy.clone().proxy(req)),
+                    );
+                    let mut conn = std::pin::pin!(conn);
+                    if let Err(err) = tokio::select! {
+                        conn = conn.as_mut() => conn,
+                        _ = guard.cancelled() => {
+                            conn.as_mut().graceful_shutdown();
+                            conn.await
+                        }
+                    } {
+                        error!(error = &err, "Error serving connection");
+                    }
+                });
+            }
+            _ = guard.cancelled() => break,
+        }
+    }
+    shutdown.shutdown().await;
+    Ok(())
 }
