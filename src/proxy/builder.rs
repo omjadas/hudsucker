@@ -17,6 +17,8 @@ use std::{
 };
 use thiserror::Error;
 use tokio::net::TcpListener;
+#[cfg(unix)]
+use tokio::net::UnixListener;
 use tokio_rustls::rustls::{ClientConfig, crypto::CryptoProvider};
 use tokio_tungstenite::Connector;
 
@@ -66,7 +68,7 @@ pub enum Error {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ProxyBuilder<T>(T);
 
-/// Builder state that needs either an address or a TCP listener.
+/// Builder state that needs an address or a listener.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct WantsAddr(());
 
@@ -74,6 +76,8 @@ pub struct WantsAddr(());
 pub(crate) enum AddrOrListener {
     Addr(SocketAddr),
     Listener(TcpListener),
+    #[cfg(unix)]
+    UnixListener(UnixListener),
 }
 
 impl ProxyBuilder<WantsAddr> {
@@ -93,6 +97,17 @@ impl ProxyBuilder<WantsAddr> {
     pub fn with_listener(self, listener: TcpListener) -> ProxyBuilder<WantsCa> {
         ProxyBuilder(WantsCa {
             al: AddrOrListener::Listener(listener),
+        })
+    }
+
+    /// Use an existing Unix domain socket listener.
+    ///
+    /// The caller owns the socket path and its permissions. Unix clients have
+    /// `0.0.0.0:0` as their address in HTTP and WebSocket contexts.
+    #[cfg(unix)]
+    pub fn with_unix_listener(self, listener: UnixListener) -> ProxyBuilder<WantsCa> {
+        ProxyBuilder(WantsCa {
+            al: AddrOrListener::UnixListener(listener),
         })
     }
 }
